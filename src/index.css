@@ -1,25 +1,88 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap');
 @import "tailwindcss";
+
+@font-face {
+  font-family: 'Ara Hamah 1982';
+  src: url('/fonts/AraHamah1982-Regular.woff2') format('woff2'),
+       url('/fonts/AraHamah1982-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'AraHamah1982-Regular';
+  src: url('/fonts/AraHamah1982-Regular.woff2') format('woff2'),
+       url('/fonts/AraHamah1982-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --color-brand-green: #174F43;
+  --color-brand-green-dark: #0F3830;
+  --color-brand-orange: #FF9D00;
+  --color-brand-orange-hover: #E68D00;
+  --color-deep-emerald: #174F43;
+  --color-forest-green: #0F3830;
+  --color-champagne-gold: #FF9D00;
+  --color-soft-cream: #FFFFFF;
+  --color-rich-black: #0B0B0B;
+  --color-warm-stone: #FFF8EE;
+
+  --font-main: 'Ara Hamah 1982', 'AraHamah1982-Regular', 'Montserrat', sans-serif;
+  --font-heading: 'Ara Hamah 1982', 'AraHamah1982-Regular', 'Montserrat', sans-serif;
+  --font-sans: 'Montserrat', system-ui, -apple-system, sans-serif;
+  --font-cairo: 'Cairo', system-ui, -apple-system, sans-serif;
+}
 
 @layer base {
   :root {
-    --color-accent: #03204e;
-    --color-accent-hover: #02183b;
+    --color-accent: #174F43;
+    --color-accent-hover: #0F3830;
+    --color-orange: #FF9D00;
+    --color-orange-hover: #E68D00;
     --color-bg: #f8fafc;
     --color-surface: #ffffff;
     --color-border: #e2e8f0;
-    --color-text-primary: #0f172a;
+    --color-text-primary: #0B0B0B;
     --color-text-secondary: #475569;
     --radius-base: 4px;
     --overlay-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   }
 
   body {
-    font-family: 'Tajawal', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    font-family: 'Cairo', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background-color: var(--color-bg);
     color: var(--color-text-primary);
     margin: 0;
     padding: 0;
     -webkit-font-smoothing: antialiased;
+  }
+
+  /* When LTR / English mode in Dashboard, use Montserrat for body and Ara Hamah 1982 for main headings */
+  html[dir="ltr"] body,
+  html[lang="en"] body {
+    font-family: 'Montserrat', system-ui, -apple-system, sans-serif;
+  }
+
+  html[dir="ltr"] h1,
+  html[dir="ltr"] h2,
+  html[dir="ltr"] h3,
+  html[dir="ltr"] .font-main,
+  html[lang="en"] h1,
+  html[lang="en"] h2,
+  html[lang="en"] h3,
+  html[lang="en"] .font-main {
+    font-family: 'Ara Hamah 1982', 'AraHamah1982-Regular', 'Montserrat', sans-serif;
+  }
+
+  /* Arabic Mode in Dashboard: Cairo for everything */
+  html[dir="rtl"] body,
+  html[lang="ar"] body,
+  [dir="rtl"] {
+    font-family: 'Cairo', system-ui, -apple-system, sans-serif !important;
   }
 
   *:focus-visible {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { 
   History, Search, Filter, RefreshCw, ArrowUpRight, 
   ArrowDownLeft, Clock, ShieldCheck, Tag
@@ -43,12 +43,12 @@ export default function StockMovementsPage() {
   }, [itemTypeFilter, movementTypeFilter]);
 
   return (
-    <div className="space-y-6 text-right font-['Tajawal',sans-serif]">
+    <div className="space-y-6 text-right font-['Cairo',sans-serif]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-200">
         <div>
-          <h1 className="text-xl font-bold text-[#03204E] flex items-center gap-2">
-            <History size={20} strokeWidth={1.5} className="text-[#03204E]" />
+          <h1 className="text-xl font-bold text-[#174F43] flex items-center gap-2">
+            <History size={20} strokeWidth={1.5} className="text-[#174F43]" />
             <span>سجل حركات وتدقيق المخزون (Stock Movement Audit Log)</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -123,7 +123,7 @@ export default function StockMovementsPage() {
                 <tr>
                   <td colSpan="7" className="py-8 text-center text-slate-400">
                     <div className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-[#03204E] border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-4 h-4 border-2 border-[#174F43] border-t-transparent rounded-full animate-spin"></div>
                       <span>جاري تحميل سجل الحركات...</span>
                     </div>
                   </td>
@@ -187,3 +187,4 @@ export default function StockMovementsPage() {
     </div>
   );
 }
+

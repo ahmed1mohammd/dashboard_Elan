@@ -118,11 +118,11 @@ export default function OverviewPage() {
   ];
 
   return (
-    <div className="space-y-6 text-right font-['Tajawal',sans-serif]">
+    <div className="space-y-6 text-right font-['Cairo',sans-serif]">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-200">
         <div>
-          <h1 className="text-xl font-bold text-[#03204E] flex items-center gap-2">
+          <h1 className="text-xl font-bold text-[#174F43] flex items-center gap-2">
             <span>لوحة المتابعة العامة</span>
             <span className="text-[11px] font-medium px-2 py-0.5 rounded-sm bg-slate-100 text-slate-700 border border-slate-200">
               متصل
@@ -135,7 +135,7 @@ export default function OverviewPage() {
 
         <button
           onClick={fetchData}
-          className="px-3.5 py-2 rounded-sm bg-white hover:bg-slate-50 text-[#03204E] border border-slate-200 text-xs font-medium flex items-center justify-center gap-2 transition-colors duration-150 self-start sm:self-auto"
+          className="px-3.5 py-2 rounded-sm bg-white hover:bg-slate-50 text-[#174F43] border border-slate-200 text-xs font-medium flex items-center justify-center gap-2 transition-colors duration-150 self-start sm:self-auto"
         >
           <RefreshCw size={14} strokeWidth={1.5} className={loading ? 'animate-spin' : ''} />
           <span>تحديث البيانات</span>
@@ -145,11 +145,11 @@ export default function OverviewPage() {
       {/* 1. Orders Status Breakdown */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-[#03204E] flex items-center gap-2">
-            <Truck size={16} strokeWidth={1.5} className="text-[#03204E]" />
+          <h2 className="text-sm font-semibold text-[#174F43] flex items-center gap-2">
+            <Truck size={16} strokeWidth={1.5} className="text-[#174F43]" />
             <span>حالة الطلبات والشحنات</span>
           </h2>
-          <Link to="/orders" className="text-xs text-[#03204E] hover:underline">عرض كل الشحنات</Link>
+          <Link to="/orders" className="text-xs text-[#174F43] hover:underline">عرض كل الشحنات</Link>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -163,7 +163,7 @@ export default function OverviewPage() {
               <Truck size={16} strokeWidth={1.5} className="text-slate-500" />
             </div>
             <div className="mt-2">
-              <h3 className="text-xl font-bold text-[#03204E]">{orderMetrics.shipped.count}</h3>
+              <h3 className="text-xl font-bold text-[#174F43]">{orderMetrics.shipped.count}</h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 القيمة: <span className="font-semibold text-slate-700">{orderMetrics.shipped.total.toLocaleString()} ج.م</span>
               </p>
@@ -180,7 +180,7 @@ export default function OverviewPage() {
               <CheckCircle2 size={16} strokeWidth={1.5} className="text-[#15803d]" />
             </div>
             <div className="mt-2">
-              <h3 className="text-xl font-bold text-[#03204E]">{orderMetrics.delivered.count}</h3>
+              <h3 className="text-xl font-bold text-[#174F43]">{orderMetrics.delivered.count}</h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 إيرادات: <span className="font-semibold text-[#15803d]">{orderMetrics.delivered.total.toLocaleString()} ج.م</span>
               </p>
@@ -197,7 +197,7 @@ export default function OverviewPage() {
               <Clock size={16} strokeWidth={1.5} className="text-[#b45309]" />
             </div>
             <div className="mt-2">
-              <h3 className="text-xl font-bold text-[#03204E]">{orderMetrics.pending.count}</h3>
+              <h3 className="text-xl font-bold text-[#174F43]">{orderMetrics.pending.count}</h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 قيد الانتظار: <span className="font-semibold text-[#b45309]">{orderMetrics.pending.total.toLocaleString()} ج.م</span>
               </p>
@@ -214,7 +214,7 @@ export default function OverviewPage() {
               <XCircle size={16} strokeWidth={1.5} className="text-[#b91c1c]" />
             </div>
             <div className="mt-2">
-              <h3 className="text-xl font-bold text-[#03204E]">{orderMetrics.cancelled.count}</h3>
+              <h3 className="text-xl font-bold text-[#174F43]">{orderMetrics.cancelled.count}</h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 المبلغ: <span className="font-semibold text-[#b91c1c]">{orderMetrics.cancelled.total.toLocaleString()} ج.م</span>
               </p>
@@ -230,25 +230,26 @@ export default function OverviewPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-200">
             <div>
               <div className="flex items-center gap-2">
-                <TrendingUp size={16} strokeWidth={1.5} className="text-[#03204E]" />
-                <h2 className="text-sm font-semibold text-[#03204E]">حركة زيارات الموقع</h2>
+                <TrendingUp size={16} strokeWidth={1.5} className="text-[#174F43]" />
+                <h2 className="text-sm font-semibold text-[#174F43]">حركة زيارات الموقع</h2>
               </div>
               <p className="text-xs text-slate-500">إحصائيات توافد الزوار يومياً</p>
             </div>
 
-            <div className="text-xs text-slate-600 font-medium">
-              {trafficStats.activeNow} زائر يتصفح المتجر الآن
+            <div className="text-xs font-semibold px-2.5 py-1 bg-[#FF9D00]/15 text-[#B45309] border border-[#FF9D00]/30 rounded-full flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#FF9D00] animate-pulse"></span>
+              <span>{trafficStats.activeNow} زائر يتصفح المتجر الآن</span>
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3 mb-4">
             <div className="p-3 bg-[#F8FAFC] border border-slate-200 rounded-sm text-center">
               <span className="text-xs text-slate-500 block">زيارات اليوم</span>
-              <span className="text-base font-bold text-[#03204E]">{trafficStats.todayVisits.toLocaleString()}</span>
+              <span className="text-base font-bold text-[#174F43]">{trafficStats.todayVisits.toLocaleString()}</span>
             </div>
             <div className="p-3 bg-[#F8FAFC] border border-slate-200 rounded-sm text-center">
               <span className="text-xs text-slate-500 block">مشاهدات الصفحات</span>
-              <span className="text-base font-bold text-[#03204E]">{trafficStats.totalPageViews.toLocaleString()}</span>
+              <span className="text-base font-bold text-[#174F43]">{trafficStats.totalPageViews.toLocaleString()}</span>
             </div>
             <div className="p-3 bg-[#F8FAFC] border border-slate-200 rounded-sm text-center">
               <span className="text-xs text-slate-500 block">معدل التحويل</span>
@@ -265,7 +266,7 @@ export default function OverviewPage() {
                   formatter={(value) => [value, 'الزيارات']}
                   contentStyle={{ backgroundColor: '#ffffff', color: '#0f172a', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '12px' }}
                 />
-                <Area type="monotone" dataKey="visits" stroke="#03204E" strokeWidth={2} fill="#F8FAFC" />
+                <Area type="monotone" dataKey="visits" stroke="#FF9D00" strokeWidth={2.5} fill="#FFF8EE" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -276,8 +277,8 @@ export default function OverviewPage() {
           <div>
             <div className="flex items-center justify-between mb-3 pb-3 border-b border-slate-200">
               <div className="flex items-center gap-2">
-                <Eye size={16} strokeWidth={1.5} className="text-[#03204E]" />
-                <h2 className="text-sm font-semibold text-[#03204E]">العطور الأكثر زيارة</h2>
+                <Eye size={16} strokeWidth={1.5} className="text-[#174F43]" />
+                <h2 className="text-sm font-semibold text-[#174F43]">العطور الأكثر زيارة</h2>
               </div>
               <span className="text-xs text-slate-500">أعلى 5</span>
             </div>
@@ -297,7 +298,7 @@ export default function OverviewPage() {
                   </div>
 
                   <div className="text-left shrink-0">
-                    <span className="text-xs font-semibold text-[#03204E] block">{p.viewsCount.toLocaleString()} زيارة</span>
+                    <span className="text-xs font-semibold text-[#174F43] block">{p.viewsCount.toLocaleString()} زيارة</span>
                     <span className="text-[11px] text-slate-500">{p.cartAdds} إضافة</span>
                   </div>
                 </div>
@@ -308,7 +309,7 @@ export default function OverviewPage() {
           <div className="pt-3 border-t border-slate-200 mt-3">
             <Link
               to="/products"
-              className="w-full py-2 px-3 rounded-sm bg-[#03204E] hover:bg-[#02183b] text-white text-xs font-medium flex items-center justify-center gap-2 transition-colors duration-150 h-9"
+              className="w-full py-2 px-3 rounded-sm bg-[#174F43] hover:bg-[#0F3830] text-white text-xs font-medium flex items-center justify-center gap-2 transition-colors duration-150 h-9"
             >
               <span>إدارة كتالوج العطور</span>
               <ArrowLeft size={14} />
@@ -321,7 +322,7 @@ export default function OverviewPage() {
       <div className="bg-white rounded-sm border border-slate-200 overflow-hidden">
         <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm font-semibold text-[#03204E]">
+            <h2 className="text-sm font-semibold text-[#174F43]">
               سجل العملاء والنشاط
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -331,7 +332,7 @@ export default function OverviewPage() {
 
           <Link
             to="/users"
-            className="text-xs text-[#03204E] hover:underline flex items-center gap-1"
+            className="text-xs text-[#174F43] hover:underline flex items-center gap-1"
           >
             <span>عرض كل العملاء</span>
             <ArrowLeft size={12} />
@@ -352,7 +353,7 @@ export default function OverviewPage() {
             <tbody className="divide-y divide-slate-100 font-normal text-slate-700">
               {users.slice(0, 5).map((u, idx) => {
                 const hasOrders = (u.totalOrders || 0) > 0;
-                const viewedPerfumes = ['ÉLAN Noir', 'Royal Vetiver', 'Soleil Blanc'][idx % 3];
+                const viewedPerfumes = ['M20 Noir', 'Royal Vetiver', 'Soleil Blanc'][idx % 3];
                 const cleanPhone = (u.phone || '').replace(/[^0-9]/g, '');
 
                 return (
@@ -379,7 +380,7 @@ export default function OverviewPage() {
                     </td>
                     <td className="py-3 px-4 text-left">
                       <a
-                        href={`https://wa.me/2${cleanPhone}?text=${encodeURIComponent(`مرحباً ${u.name || ''}، معك خدمة عملاء ÉLAN.`)}`}
+                        href={`https://wa.me/2${cleanPhone}?text=${encodeURIComponent(`مرحباً ${u.name || ''}، معك خدمة عملاء M20.`)}`}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center gap-1 px-2.5 py-1 rounded-sm border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs transition-colors duration-150"
@@ -398,3 +399,4 @@ export default function OverviewPage() {
     </div>
   );
 }
+

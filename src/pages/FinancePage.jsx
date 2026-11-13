@@ -1,570 +1,482 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  Tooltip, 
-  ResponsiveContainer,
-  Legend
-} from 'recharts';
-import { getProducts, getOrders, updateProduct } from '../services/api';
-import { showSuccess, showError } from '../utils/swal';
-
-import { 
-  DollarSign, 
-  CreditCard, 
-  Smartphone, 
-  TrendingUp, 
-  Plus, 
-  Trash2, 
-  RefreshCw, 
-  X, 
-  Save, 
-  Check, 
-  Calculator, 
-  Package, 
-  Receipt 
+  DollarSign, CreditCard, Smartphone, TrendingUp, TrendingDown,
+  Plus, RefreshCw, X, Save, Check, Calculator, Package, 
+  Receipt, Wallet, Calendar, AlertCircle, ArrowUpRight, ArrowDownLeft,
+  Settings, Sliders, Truck, Layers, ShieldCheck, Building2,
+  RotateCcw, CheckCircle2, XCircle, Clock, Undo2, ExternalLink
 } from 'lucide-react';
+import { 
+  getFinanceOverview, getCostSettings, updateCostSettings, 
+  adjustCashAccount 
+} from '../services/api';
+import { useLanguage } from '../context/LanguageContext';
+import { showSuccess, showError, showToast } from '../utils/swal';
+
+const DATE_PRESETS = [
+  { key: 'today', labelEn: 'Today', labelAr: 'اليوم' },
+  { key: 'yesterday', labelEn: 'Yesterday', labelAr: 'أمس' },
+  { key: 'this_week', labelEn: 'This Week', labelAr: 'هذا الأسبوع' },
+  { key: 'this_month', labelEn: 'This Month', labelAr: 'هذا الشهر' },
+  { key: 'last_month', labelEn: 'Last Month', labelAr: 'الشهر الماضي' },
+  { key: 'this_year', labelEn: 'This Year', labelAr: 'هذا العام' },
+  { key: 'all', labelEn: 'All Time', labelAr: 'الكل' },
+];
 
 export default function FinancePage() {
-  const [products, setProducts] = useState([]);
-  const [orders, setOrders] = useState([]);
+  const { lang, isRTL, t, formatCurrency } = useLanguage();
   const [loading, setLoading] = useState(true);
-  const [savingProductId, setSavingProductId] = useState(null);
-  const [savedSuccessId, setSavedSuccessId] = useState(null);
+  const [period, setPeriod] = useState('this_month');
+  const [customDates, setCustomDates] = useState({ startDate: '', endDate: '' });
+  const [data, setData] = useState(null);
 
-  // Wallets & Treasuries
-  const [treasuries, setTreasuries] = useState(() => {
-    try {
-      const saved = localStorage.getItem('elan_finance_treasuries');
-      return saved ? JSON.parse(saved) : {
-        vodafone: { balance: 14850, phone: '01012345678', name: 'فودافون كاش' },
-        instapay: { balance: 22400, handle: 'elan.perfumes@instapay', name: 'إنستاباي' },
-        cod: { balance: 8600, name: 'عند الاستلام (المناديب)' },
-        online: { balance: 19500, name: 'بوابة الدفع الإلكتروني' }
-      };
-    } catch {
-      return {
-        vodafone: { balance: 14850, phone: '01012345678', name: 'فودافون كاش' },
-        instapay: { balance: 22400, handle: 'elan.perfumes@instapay', name: 'إنستاباي' },
-        cod: { balance: 8600, name: 'عند الاستلام (المناديب)' },
-        online: { balance: 19500, name: 'بوابة الدفع الإلكتروني' }
-      };
-    }
+  // Cost Settings Modal
+  const [showCostModal, setShowCostModal] = useState(false);
+  const [costForm, setCostForm] = useState({
+    bottleWithCapSprayer: 45,
+    sticker: 20,
+    box: 25,
+    marketingPerBottle: 20,
+    defaultLiquidDensity: 0.86,
   });
+  const [savingCosts, setSavingCosts] = useState(false);
 
-  // Operating Expenses
-  const [expenses, setExpenses] = useState(() => {
-    try {
-      const saved = localStorage.getItem('elan_finance_expenses');
-      return saved ? JSON.parse(saved) : [
-        { id: 1, title: 'إعلانات ومنشورات ترويجية', category: 'marketing', amount: 3500, date: '2026-09-28' },
-        { id: 2, title: 'مواد تغليف وحماية الزجاجات', category: 'packaging', amount: 1800, date: '2026-09-30' },
-      ];
-    } catch {
-      return [];
-    }
+  // Cash Adjustment Modal
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [adjustForm, setAdjustForm] = useState({
+    amount: '',
+    type: 'deposit', // deposit or withdrawal
+    reason: '',
   });
+  const [submittingAdjust, setSubmittingAdjust] = useState(false);
 
-  const [newExpense, setNewExpense] = useState({ title: '', category: 'marketing', amount: '' });
-  const [showExpenseModal, setShowExpenseModal] = useState(false);
-
-  // Editable pricing
-  const [editableVariants, setEditableVariants] = useState({});
-
-  const fetchData = async () => {
+  const fetchFinanceData = async () => {
     setLoading(true);
     try {
-      const [productsData, ordersData] = await Promise.all([
-        getProducts().catch(() => []),
-        getOrders().catch(() => []),
-      ]);
+      const params = {};
+      if (period === 'custom' && customDates.startDate && customDates.endDate) {
+        params.startDate = customDates.startDate;
+        params.endDate = customDates.endDate;
+      } else {
+        params.preset = period;
+      }
 
-      const pList = Array.isArray(productsData) ? productsData : [];
-      const oList = Array.isArray(ordersData) ? ordersData : [];
+      const overview = await getFinanceOverview(params);
+      setData(overview);
 
-      setProducts(pList);
-      setOrders(oList);
-
-      const initialMap = {};
-      pList.forEach(p => {
-        initialMap[p._id] = (p.variants || []).map(v => ({
-          size: v.size,
-          price: v.price || 0,
-          costPrice: v.costPrice || Math.round((v.price || 599) * 0.35),
-          stock: v.stock || 0,
-          SKU: v.SKU || ''
-        }));
-      });
-      setEditableVariants(initialMap);
-
+      if (overview.costDefaults) {
+        setCostForm({
+          bottleWithCapSprayer: overview.costDefaults.bottleWithCapSprayer ?? 45,
+          sticker: overview.costDefaults.sticker ?? 20,
+          box: overview.costDefaults.box ?? 25,
+          marketingPerBottle: overview.costDefaults.marketingPerBottle ?? 20,
+          defaultLiquidDensity: overview.costDefaults.defaultLiquidDensity ?? 0.86,
+        });
+      }
     } catch (err) {
-      console.error('Failed to load finance data:', err);
+      console.error('Error fetching finance overview:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchFinanceData();
+  }, [period]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('elan_finance_expenses', JSON.stringify(expenses));
-      localStorage.setItem('elan_finance_treasuries', JSON.stringify(treasuries));
-    } catch {
-      // ignore
-    }
-  }, [expenses, treasuries]);
-
-  const handlePriceChange = (productId, variantIndex, field, value) => {
-    setEditableVariants(prev => {
-      const productVariants = [...(prev[productId] || [])];
-      productVariants[variantIndex] = {
-        ...productVariants[variantIndex],
-        [field]: Number(value) || 0
-      };
-      return {
-        ...prev,
-        [productId]: productVariants
-      };
-    });
-  };
-
-  const handleSaveProductPricing = async (product) => {
-    const updatedVariants = editableVariants[product._id];
-    if (!updatedVariants) return;
-
-    setSavingProductId(product._id);
-    try {
-      await updateProduct(product._id, {
-        ...product,
-        variants: updatedVariants
-      });
-      setSavedSuccessId(product._id);
-      showSuccess('تم الحفظ', `تم تحديث تكاليف وأسعار ${product.name} بنجاح`);
-      setTimeout(() => setSavedSuccessId(null), 2500);
-    } catch (err) {
-      console.error(err);
-      showError('خطأ', 'تعذر حفظ الأسعار.');
-    } finally {
-      setSavingProductId(null);
-    }
-  };
-
-  const handleAddExpense = (e) => {
+  const handleCustomDateSubmit = (e) => {
     e.preventDefault();
-    if (!newExpense.title || !newExpense.amount) return;
-
-    const expenseItem = {
-      id: Date.now(),
-      title: newExpense.title,
-      category: newExpense.category,
-      amount: Number(newExpense.amount),
-      date: new Date().toISOString().split('T')[0]
-    };
-
-    setExpenses(prev => [expenseItem, ...prev]);
-    setNewExpense({ title: '', category: 'marketing', amount: '' });
-    setShowExpenseModal(false);
+    if (customDates.startDate && customDates.endDate) {
+      setPeriod('custom');
+      fetchFinanceData();
+    }
   };
 
-  const handleDeleteExpense = (id) => {
-    setExpenses(prev => prev.filter(e => e.id !== id));
+  const handleSaveCosts = async (e) => {
+    e.preventDefault();
+    setSavingCosts(true);
+    try {
+      const updated = await updateCostSettings({
+        bottleWithCapSprayer: Number(costForm.bottleWithCapSprayer),
+        sticker: Number(costForm.sticker),
+        box: Number(costForm.box),
+        marketingPerBottle: Number(costForm.marketingPerBottle),
+        defaultLiquidDensity: Number(costForm.defaultLiquidDensity),
+      });
+
+      showSuccess(
+        lang === 'ar' ? 'تم الحفظ بنجاح' : 'Settings Saved',
+        lang === 'ar' ? 'تم تحديث التكاليف الافتراضية لحساب هوامش المنتجات تلقائياً' : 'Automated product cost calculation defaults updated'
+      );
+      setShowCostModal(false);
+      fetchFinanceData();
+    } catch (err) {
+      showError(
+        lang === 'ar' ? 'خطأ' : 'Error',
+        err.response?.data?.message || (lang === 'ar' ? 'تعذر حفظ الإعدادات' : 'Failed to update cost settings')
+      );
+    } finally {
+      setSavingCosts(false);
+    }
   };
 
-  const updateTreasuryField = (key, field, val) => {
-    setTreasuries(prev => ({
-      ...prev,
-      [key]: {
-        ...prev[key],
-        [field]: val
-      }
-    }));
+  const handleOpenAdjust = (account) => {
+    setSelectedAccount(account);
+    setAdjustForm({
+      amount: '',
+      type: 'deposit',
+      reason: '',
+    });
+    setShowAdjustModal(true);
   };
 
-  // Financial calculations
-  const totalDeliveredRevenue = orders
-    .filter(o => o.orderStatus === 'delivered' || o.paymentStatus === 'paid')
-    .reduce((sum, o) => sum + (o.total || 0), 0);
+  const handleSubmitAdjust = async (e) => {
+    e.preventDefault();
+    if (!selectedAccount) return;
+    const amt = Number(adjustForm.amount);
+    if (isNaN(amt) || amt <= 0) {
+      showError(
+        lang === 'ar' ? 'مبلغ غير صالح' : 'Invalid Amount',
+        lang === 'ar' ? 'يرجى إدخال مبلغ صحيح أكبر من الصفر' : 'Please enter an amount greater than 0'
+      );
+      return;
+    }
 
-  const totalCOGS = orders
-    .filter(o => o.orderStatus === 'delivered' || o.paymentStatus === 'paid')
-    .reduce((sum, o) => {
-      const itemsCost = (o.items || []).reduce((iSum, item) => iSum + ((item.price || 0) * 0.35 * (item.quantity || 1)), 0);
-      return sum + itemsCost;
-    }, 0);
+    setSubmittingAdjust(true);
+    try {
+      await adjustCashAccount(selectedAccount.id || selectedAccount._id, {
+        amount: amt,
+        type: adjustForm.type,
+        reason: adjustForm.reason,
+      });
 
-  const totalOperatingExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-  const grossProfit = totalDeliveredRevenue - totalCOGS;
-  const netRealProfit = grossProfit - totalOperatingExpenses;
-  const overallMargin = totalDeliveredRevenue > 0 ? Math.round((grossProfit / totalDeliveredRevenue) * 100) : 65;
+      showSuccess(
+        lang === 'ar' ? 'تمت التسوية بنجاح' : 'Balance Adjusted',
+        lang === 'ar' ? 'تم تحديث رصيد الخزينة وتسجيل الحركة' : 'Account balance adjusted and audit record logged'
+      );
+      setShowAdjustModal(false);
+      fetchFinanceData();
+    } catch (err) {
+      showError(
+        lang === 'ar' ? 'خطأ' : 'Error',
+        err.response?.data?.message || (lang === 'ar' ? 'تعذر تعديل الرصيد' : 'Failed to adjust account balance')
+      );
+    } finally {
+      setSubmittingAdjust(false);
+    }
+  };
 
-  const totalInventoryRetailValue = Object.values(editableVariants).reduce((sum, vList) => {
-    return sum + (vList || []).reduce((vSum, v) => vSum + ((v.price || 0) * (v.stock || 0)), 0);
-  }, 0);
+  const summary = data?.summary || {
+    grossSales: 0,
+    cogs: 0,
+    grossProfit: 0,
+    grossProfitMargin: 0,
+    operatingExpenses: 0,
+    shippingAndTransportExpenses: 0,
+    netProfit: 0,
+    netProfitMargin: 0,
+    totalOrdersCount: 0,
+    returnedOrdersCount: 0,
+    totalReturnShippingExpenses: 0,
+    outboundReturnShipping: 0,
+    inboundReturnShipping: 0,
+    returnShippingProfitImpact: 0,
+  };
 
-  const totalInventoryCostValue = Object.values(editableVariants).reduce((sum, vList) => {
-    return sum + (vList || []).reduce((vSum, v) => vSum + ((v.costPrice || 0) * (v.stock || 0)), 0);
-  }, 0);
+  const returnedShipments = data?.returnedShipments || {
+    count: 0,
+    totalCost: 0,
+    outboundCost: 0,
+    returnCost: 0,
+    orders: [],
+  };
 
-  const totalTreasuriesBalance = Object.values(treasuries).reduce((sum, t) => sum + (t.balance || 0), 0);
+  const cashBalances = data?.cashBalances || { total: 0, accounts: [] };
+  const outstanding = data?.outstanding || {
+    customerPayments: 0,
+    customerOrdersCount: 0,
+    supplierPayments: 0,
+    unpaidInvoicesCount: 0,
+  };
+  const inventoryValuation = data?.inventoryValuation || {
+    rawMaterialsValue: 0,
+    finishedLiquidValue: 0,
+    totalInventoryValue: 0,
+  };
 
-  const financialChartData = [
-    { month: 'أسبوع 1', revenue: 14500, costs: 5100, profit: 9400 },
-    { month: 'أسبوع 2', revenue: 22800, costs: 7900, profit: 14900 },
-    { month: 'أسبوع 3', revenue: 19400, costs: 6800, profit: 12600 },
-    { month: 'أسبوع 4', revenue: 31200, costs: 10900, profit: 20300 },
-  ];
+  const getAccountIcon = (type) => {
+    switch (type) {
+      case 'vodafone_cash':
+      case 'mobile_wallet':
+        return <Smartphone size={16} className="text-rose-600" />;
+      case 'instapay':
+        return <ArrowUpRight size={16} className="text-purple-600" />;
+      case 'bank_account':
+        return <Building2 size={16} className="text-blue-600" />;
+      case 'payment_gateway':
+        return <CreditCard size={16} className="text-emerald-600" />;
+      case 'cash_on_delivery':
+      case 'cash_in_hand':
+      default:
+        return <Wallet size={16} className="text-amber-600" />;
+    }
+  };
 
   return (
-    <div className="space-y-6 text-right font-['Tajawal',sans-serif]">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-200">
-        <div>
-          <h1 className="text-xl font-bold text-[#03204E] flex items-center gap-2">
-            <DollarSign size={18} strokeWidth={1.5} className="text-[#03204E]" />
-            <span>الإدارة المالية وحساب الأرباح</span>
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            متابعة التحصيلات، تحديد تكلفة وسعر البيع لكل عطر، وتسجيل المصروفات.
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-sm bg-[#174F43] text-white flex items-center justify-center shrink-0">
+            <DollarSign size={20} strokeWidth={1.5} />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+              {lang === 'ar' ? 'نظرة عامة على المالية والأرباح' : 'Finance & Profit Overview'}
+            </h1>
+            <p className="text-xs text-slate-500 font-medium">
+              {lang === 'ar'
+                ? 'متابعة المبيعات، تكلفة البضاعة المباعة (COGS)، صافي الأرباح، وأرصدة الخزائن وحسابات الدفع.'
+                : 'Real-time sales, automated COGS, net profit margins, cash accounts, and payables.'}
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <button
-            onClick={() => setShowExpenseModal(true)}
-            className="px-3.5 py-2 rounded-sm bg-[#03204E] hover:bg-[#02183b] text-white text-xs font-medium flex items-center gap-1.5 transition-colors duration-150 h-9"
+            onClick={() => setShowCostModal(true)}
+            className="px-3.5 py-2 rounded-sm border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
           >
-            <Plus size={14} />
-            <span>تسجيل مصروف</span>
+            <Sliders size={14} />
+            <span>{lang === 'ar' ? 'إعدادات التكاليف التلقائية' : 'Cost Defaults Settings'}</span>
           </button>
 
           <button
-            onClick={fetchData}
-            className="p-2 rounded-sm border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors"
-            title="تحديث"
+            onClick={fetchFinanceData}
+            className="p-2 rounded-sm border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors shadow-xs"
+            title={lang === 'ar' ? 'تحديث' : 'Refresh'}
           >
-            <RefreshCw size={14} strokeWidth={1.5} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={15} strokeWidth={1.5} className={loading ? 'animate-spin text-[#174F43]' : ''} />
           </button>
         </div>
       </div>
 
-      {/* 1. Treasuries */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-[#03204E]">
-            خزائن ومحافظ التحصيل
-          </h2>
-          <span className="text-xs text-slate-600 font-medium">
-            إجمالي الرصيد: <span className="text-[#15803d] font-bold">{totalTreasuriesBalance.toLocaleString()} ج.م</span>
+      {/* Date Presets Filter Bar */}
+      <div className="bg-white rounded-sm p-3 border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 overflow-x-auto">
+          <span className="text-xs text-slate-400 font-medium flex items-center gap-1 shrink-0 mr-1">
+            <Calendar size={13} />
+            {lang === 'ar' ? 'الفترة:' : 'Period:'}
           </span>
+          {DATE_PRESETS.map((p) => {
+            const isActive = period === p.key;
+            return (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => setPeriod(p.key)}
+                className={`px-3 py-1.5 rounded-sm text-xs font-medium transition-colors shrink-0 ${
+                  isActive
+                    ? 'bg-[#174F43] text-white font-semibold shadow-xs'
+                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {lang === 'ar' ? p.labelAr : p.labelEn}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Custom date range form */}
+        <form onSubmit={handleCustomDateSubmit} className="flex items-center gap-2">
+          <input
+            type="date"
+            value={customDates.startDate}
+            onChange={(e) => setCustomDates({ ...customDates, startDate: e.target.value })}
+            className="h-8 bg-slate-50 border border-slate-200 rounded-sm px-2 text-xs outline-none text-slate-700 font-mono"
+          />
+          <span className="text-slate-400 text-xs">-</span>
+          <input
+            type="date"
+            value={customDates.endDate}
+            onChange={(e) => setCustomDates({ ...customDates, endDate: e.target.value })}
+            className="h-8 bg-slate-50 border border-slate-200 rounded-sm px-2 text-xs outline-none text-slate-700 font-mono"
+          />
+          <button
+            type="submit"
+            className="px-3 h-8 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-sm transition-colors"
+          >
+            {lang === 'ar' ? 'تطبيق' : 'Apply'}
+          </button>
+        </form>
+      </div>
+
+      {/* Primary Financial Performance KPIs (P&L Breakdown) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
+        {/* Gross Sales */}
+        <div className="bg-white rounded-sm p-4 border border-slate-200 shadow-xs">
+          <span className="text-xs text-slate-500 font-medium block">
+            {lang === 'ar' ? 'إجمالي المبيعات' : 'Gross Sales'}
+          </span>
+          <div className="mt-1">
+            <h3 className="text-xl font-bold text-slate-900 font-mono">
+              {formatCurrency(Math.round(summary.grossSales))}
+            </h3>
+            <span className="text-[11px] text-slate-400 block mt-0.5">
+              {summary.totalOrdersCount} {lang === 'ar' ? 'طلب مؤكد' : 'orders'}
+            </span>
+          </div>
+        </div>
+
+        {/* Cost of Goods Sold (COGS) */}
+        <div className="bg-white rounded-sm p-4 border border-slate-200 shadow-xs">
+          <span className="text-xs text-slate-500 font-medium block">
+            {lang === 'ar' ? 'تكلفة البضاعة المباعة (COGS)' : 'Cost of Goods Sold'}
+          </span>
+          <div className="mt-1">
+            <h3 className="text-xl font-bold text-slate-800 font-mono">
+              {formatCurrency(Math.round(summary.cogs))}
+            </h3>
+            <span className="text-[10px] text-slate-400 block mt-0.5 truncate" title="Liquid + Bottle + Sticker + Box + Marketing">
+              {lang === 'ar' ? 'سائل + زجاجة + علبة + تسويق' : 'Liquid + packaging + mkt'}
+            </span>
+          </div>
+        </div>
+
+        {/* Gross Profit */}
+        <div className="bg-white rounded-sm p-4 border border-slate-200 shadow-xs">
+          <span className="text-xs text-slate-500 font-medium block">
+            {lang === 'ar' ? 'مجمل الربح' : 'Gross Profit'}
+          </span>
+          <div className="mt-1">
+            <h3 className="text-xl font-bold text-[#174F43] font-mono">
+              {formatCurrency(Math.round(summary.grossProfit))}
+            </h3>
+            <span className="text-[11px] text-emerald-600 font-semibold block mt-0.5 font-mono">
+              {summary.grossProfitMargin}% {lang === 'ar' ? 'هامش' : 'margin'}
+            </span>
+          </div>
+        </div>
+
+        {/* Operating Expenses */}
+        <div className="bg-white rounded-sm p-4 border border-slate-200 shadow-xs">
+          <span className="text-xs text-slate-500 font-medium block">
+            {lang === 'ar' ? 'المصروفات التشغيلية' : 'Operating Expenses'}
+          </span>
+          <div className="mt-1">
+            <h3 className="text-xl font-bold text-slate-800 font-mono">
+              {formatCurrency(Math.round(summary.operatingExpenses))}
+            </h3>
+            <span className="text-[11px] text-slate-400 block mt-0.5">
+              {lang === 'ar' ? 'إعلانات، إيجار، مرافق' : 'Ads, rent, utilities'}
+            </span>
+          </div>
+        </div>
+
+        {/* Shipping & Transport */}
+        <div className="bg-white rounded-sm p-4 border border-slate-200 shadow-xs">
+          <span className="text-xs text-slate-500 font-medium block">
+            {lang === 'ar' ? 'مصاريف الشحن والنقل' : 'Shipping & Logistics'}
+          </span>
+          <div className="mt-1">
+            <h3 className="text-xl font-bold text-slate-800 font-mono">
+              {formatCurrency(Math.round(summary.shippingAndTransportExpenses))}
+            </h3>
+            <span className="text-[11px] text-slate-400 block mt-0.5">
+              {lang === 'ar' ? 'شحن طلبات + نقل' : 'Orders + transit'}
+            </span>
+          </div>
+        </div>
+
+        {/* Returned Orders Shipping Costs */}
+        <div className="bg-white rounded-sm p-4 border border-amber-200/90 shadow-xs">
+          <span className="text-xs text-amber-900 font-semibold flex items-center justify-between">
+            <span>{lang === 'ar' ? 'تكاليف شحن المرتجعات' : 'Return Shipping'}</span>
+            <RotateCcw size={13} className="text-amber-700" />
+          </span>
+          <div className="mt-1">
+            <h3 className="text-xl font-bold text-amber-900 font-mono">
+              {formatCurrency(Math.round(summary.totalReturnShippingExpenses))}
+            </h3>
+            <span className="text-[11px] text-amber-700 block mt-0.5 font-medium">
+              {summary.returnedOrdersCount} {lang === 'ar' ? 'شحنة مرتجعة' : 'returns'}
+            </span>
+          </div>
+        </div>
+
+        {/* Net Profit */}
+        <div className={`rounded-sm p-4 border shadow-xs ${
+          summary.netProfit >= 0 ? 'bg-emerald-50/60 border-emerald-200' : 'bg-rose-50/60 border-rose-200'
+        }`}>
+          <span className={`text-xs font-semibold block ${summary.netProfit >= 0 ? 'text-emerald-900' : 'text-rose-900'}`}>
+            {lang === 'ar' ? 'صافي الربح' : 'Net Profit'}
+          </span>
+          <div className="mt-1">
+            <h3 className={`text-xl font-black font-mono ${summary.netProfit >= 0 ? 'text-emerald-800' : 'text-rose-700'}`}>
+              {formatCurrency(Math.round(summary.netProfit))}
+            </h3>
+            <span className={`text-[11px] font-bold block mt-0.5 font-mono ${summary.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+              {summary.netProfitMargin}% {lang === 'ar' ? 'صافي الهامش' : 'net margin'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Cash and Payment Accounts (Treasuries) */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Wallet size={16} className="text-[#174F43]" />
+            <h2 className="text-sm font-bold text-slate-900">
+              {lang === 'ar' ? 'الخزائن وحسابات الدفع المتاحة' : 'Cash & Payment Account Balances'}
+            </h2>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 font-medium">
+              {lang === 'ar' ? 'إجمالي السيولة المتاحة:' : 'Total Available Cash:'}
+            </span>
+            <span className="text-base font-bold font-mono text-[#174F43]">
+              {formatCurrency(Math.round(cashBalances.total))}
+            </span>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Vodafone Cash */}
-          <div className="bg-white rounded-sm p-3.5 border border-slate-200 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-800 flex items-center gap-1.5">
-                <Smartphone size={14} strokeWidth={1.5} />
-                <span>فودافون كاش</span>
-              </span>
-            </div>
-            <div>
-              <span className="text-[11px] text-slate-500 block">الرصيد:</span>
-              <span className="text-lg font-bold text-slate-900">{treasuries.vodafone.balance.toLocaleString()} ج.م</span>
-            </div>
-            <div className="pt-2 border-t border-slate-100">
-              <span className="text-[11px] text-slate-500 block mb-1">رقم الاستلام:</span>
-              <input
-                type="text"
-                value={treasuries.vodafone.phone}
-                onChange={(e) => updateTreasuryField('vodafone', 'phone', e.target.value)}
-                className="w-full bg-[#F8FAFC] border border-slate-200 rounded-sm px-2 py-1 text-xs font-mono text-slate-800 outline-none"
-              />
-            </div>
-          </div>
-
-          {/* InstaPay */}
-          <div className="bg-white rounded-sm p-3.5 border border-slate-200 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-800 flex items-center gap-1.5">
-                <Smartphone size={14} strokeWidth={1.5} />
-                <span>إنستاباي</span>
-              </span>
-            </div>
-            <div>
-              <span className="text-[11px] text-slate-500 block">الرصيد:</span>
-              <span className="text-lg font-bold text-slate-900">{treasuries.instapay.balance.toLocaleString()} ج.م</span>
-            </div>
-            <div className="pt-2 border-t border-slate-100">
-              <span className="text-[11px] text-slate-500 block mb-1">معرف الحساب:</span>
-              <input
-                type="text"
-                value={treasuries.instapay.handle}
-                onChange={(e) => updateTreasuryField('instapay', 'handle', e.target.value)}
-                className="w-full bg-[#F8FAFC] border border-slate-200 rounded-sm px-2 py-1 text-xs font-mono text-slate-800 outline-none"
-              />
-            </div>
-          </div>
-
-          {/* COD */}
-          <div className="bg-white rounded-sm p-3.5 border border-slate-200 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-800 flex items-center gap-1.5">
-                <DollarSign size={14} strokeWidth={1.5} />
-                <span>عند الاستلام (المناديب)</span>
-              </span>
-            </div>
-            <div>
-              <span className="text-[11px] text-slate-500 block">المبالغ المعلقة:</span>
-              <span className="text-lg font-bold text-slate-900">{treasuries.cod.balance.toLocaleString()} ج.م</span>
-            </div>
-            <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-500">
-              تصفية دورية مع شركات الشحن.
-            </div>
-          </div>
-
-          {/* Online Visa */}
-          <div className="bg-white rounded-sm p-3.5 border border-slate-200 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-800 flex items-center gap-1.5">
-                <CreditCard size={14} strokeWidth={1.5} />
-                <span>المدفوعات الإلكترونية</span>
-              </span>
-            </div>
-            <div>
-              <span className="text-[11px] text-slate-500 block">المحصل بالبوابة:</span>
-              <span className="text-lg font-bold text-slate-900">{treasuries.online.balance.toLocaleString()} ج.م</span>
-            </div>
-            <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-500">
-              تحويل للحساب البنكي.
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white rounded-sm p-4 border border-slate-200">
-          <span className="text-xs text-slate-500 block">المبيعات المحققة</span>
-          <h3 className="text-xl font-bold text-slate-900 mt-1">{totalDeliveredRevenue.toLocaleString()} ج.م</h3>
-        </div>
-
-        <div className="bg-white rounded-sm p-4 border border-slate-200">
-          <span className="text-xs text-slate-500 block">تكلفة البضاعة (COGS)</span>
-          <h3 className="text-xl font-bold text-slate-900 mt-1">{Math.round(totalCOGS).toLocaleString()} ج.م</h3>
-        </div>
-
-        <div className="bg-white rounded-sm p-4 border border-slate-200">
-          <span className="text-xs text-slate-500 block">المصروفات التشغيلية</span>
-          <h3 className="text-xl font-bold text-[#b91c1c] mt-1">{totalOperatingExpenses.toLocaleString()} ج.م</h3>
-        </div>
-
-        <div className="bg-[#03204E] text-white rounded-sm p-4 border border-[#03204E]">
-          <span className="text-xs text-white/70 block">صافي الربح الفعلي</span>
-          <h3 className="text-xl font-bold text-white mt-1">{Math.round(netRealProfit).toLocaleString()} ج.م</h3>
-          <span className="text-[11px] text-white/70 block mt-0.5">هامش الربح: {overallMargin}%</span>
-        </div>
-      </div>
-
-      {/* 3. Analytics Chart & Inventory Valuation */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-sm p-5 border border-slate-200">
-          <h2 className="text-sm font-semibold text-[#03204E] mb-3 pb-2 border-b border-slate-200">
-            تحليل المبيعات والتكاليف الأسبوعية
-          </h2>
-
-          <div className="h-60 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={financialChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} />
-                <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
-                <Tooltip 
-                  formatter={(val, name) => [
-                    `${val} ج.م`, 
-                    name === 'revenue' ? 'المبيعات' : name === 'costs' ? 'التكاليف' : 'الربح'
-                  ]}
-                  contentStyle={{ backgroundColor: '#ffffff', color: '#0f172a', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '12px' }}
-                />
-                <Legend formatter={(val) => val === 'revenue' ? 'المبيعات' : val === 'costs' ? 'التكاليف' : 'الربح'} />
-                <Bar dataKey="revenue" fill="#03204E" radius={[2, 2, 0, 0]} />
-                <Bar dataKey="costs" fill="#94a3b8" radius={[2, 2, 0, 0]} />
-                <Bar dataKey="profit" fill="#15803d" radius={[2, 2, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Inventory summary */}
-        <div className="bg-white rounded-sm p-5 border border-slate-200 flex flex-col justify-between">
-          <div className="space-y-3">
-            <h2 className="text-sm font-semibold text-[#03204E] pb-2 border-b border-slate-200">
-              تقييم المخزون الحالي
-            </h2>
-
-            <div className="p-3 bg-[#F8FAFC] rounded-sm border border-slate-200 text-xs">
-              <span className="text-slate-500 block">القيمة البيعية للمخزون:</span>
-              <span className="text-base font-bold text-slate-900 block mt-0.5">
-                {totalInventoryRetailValue.toLocaleString()} ج.م
-              </span>
-            </div>
-
-            <div className="p-3 bg-[#F8FAFC] rounded-sm border border-slate-200 text-xs">
-              <span className="text-slate-500 block">تكلفة رأس المال في المخزون:</span>
-              <span className="text-base font-bold text-slate-700 block mt-0.5">
-                {totalInventoryCostValue.toLocaleString()} ج.م
-              </span>
-            </div>
-
-            <div className="p-3 bg-[#F8FAFC] rounded-sm border border-slate-200 text-xs">
-              <span className="text-slate-500 block">الربح المتوقع عند بيع المخزون:</span>
-              <span className="text-base font-bold text-[#15803d] block mt-0.5">
-                {(totalInventoryRetailValue - totalInventoryCostValue).toLocaleString()} ج.م
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 4. Product Pricing Table */}
-      <div className="bg-white rounded-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-[#F8FAFC] flex justify-between items-center">
-          <h2 className="text-sm font-semibold text-[#03204E]">
-            تحديد أسعار التكلفة وأسعار البيع
-          </h2>
-          <span className="text-xs text-slate-500">{products.length} عطر</span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
-            <thead className="bg-[#F8FAFC] text-slate-700 font-semibold border-b border-slate-200">
-              <tr>
-                <th className="py-2.5 px-4">اسم العطر</th>
-                <th className="py-2.5 px-4">الحجم</th>
-                <th className="py-2.5 px-4 text-center">سعر التكلفة (ج.م)</th>
-                <th className="py-2.5 px-4 text-center">سعر البيع (ج.م)</th>
-                <th className="py-2.5 px-4 text-center">صافي ربح القطعة</th>
-                <th className="py-2.5 px-4 text-center">هامش الربح</th>
-                <th className="py-2.5 px-4 text-center">المخزون</th>
-                <th className="py-2.5 px-4 text-left">حفظ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-normal text-slate-700">
-              {products.map((product) => {
-                const variants = editableVariants[product._id] || product.variants || [];
-                const isSaving = savingProductId === product._id;
-                const isSaved = savedSuccessId === product._id;
-
-                return variants.map((variant, vIdx) => {
-                  const cost = variant.costPrice || 0;
-                  const price = variant.price || 0;
-                  const profit = price - cost;
-                  const marginPercent = price > 0 ? Math.round((profit / price) * 100) : 0;
-                  const mainImg = product.images?.[0]?.url || '/img/product.png';
-
-                  return (
-                    <tr key={`${product._id}-${vIdx}`} className="hover:bg-slate-50 transition-colors duration-150">
-                      <td className="py-2.5 px-4">
-                        <div className="flex items-center gap-2">
-                          <img 
-                            src={mainImg} 
-                            alt={product.name} 
-                            className="w-7 h-7 rounded-sm object-contain border border-slate-200 shrink-0"
-                            onError={(e) => { e.target.src = '/img/product.png'; }}
-                          />
-                          <span className="font-medium text-slate-900 text-xs">{product.name}</span>
-                        </div>
-                      </td>
-
-                      <td className="py-2.5 px-4 font-mono">
-                        {variant.size}
-                      </td>
-
-                      <td className="py-2.5 px-4 text-center">
-                        <input
-                          type="number"
-                          min="0"
-                          value={variant.costPrice || ''}
-                          onChange={(e) => handlePriceChange(product._id, vIdx, 'costPrice', e.target.value)}
-                          className="w-20 bg-white border border-slate-200 rounded-sm px-2 py-1 text-xs text-center outline-none focus:border-[#03204E]"
-                        />
-                      </td>
-
-                      <td className="py-2.5 px-4 text-center">
-                        <input
-                          type="number"
-                          min="0"
-                          value={variant.price || ''}
-                          onChange={(e) => handlePriceChange(product._id, vIdx, 'price', e.target.value)}
-                          className="w-20 bg-white border border-slate-200 rounded-sm px-2 py-1 text-xs text-center outline-none focus:border-[#03204E]"
-                        />
-                      </td>
-
-                      <td className="py-2.5 px-4 text-center font-medium text-slate-900">
-                        {profit > 0 ? `+${profit} ج.م` : `${profit} ج.م`}
-                      </td>
-
-                      <td className="py-2.5 px-4 text-center font-mono">
-                        {marginPercent}%
-                      </td>
-
-                      <td className="py-2.5 px-4 text-center font-mono">
-                        {variant.stock}
-                      </td>
-
-                      <td className="py-2.5 px-4 text-left">
-                        {vIdx === 0 && (
-                          <button
-                            onClick={() => handleSaveProductPricing(product)}
-                            disabled={isSaving}
-                            className="px-2.5 py-1 rounded-sm bg-[#03204E] hover:bg-[#02183b] text-white text-xs inline-flex items-center gap-1 transition-colors duration-150 disabled:opacity-50"
-                          >
-                            {isSaved ? <Check size={12} /> : <Save size={12} />}
-                            <span>{isSaved ? 'تم' : 'حفظ'}</span>
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                });
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* 5. Expenses */}
-      <div className="bg-white rounded-sm border border-slate-200 p-4 space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-          <h2 className="text-sm font-semibold text-[#03204E]">سجل المصروفات التشغيلية</h2>
-          <button
-            onClick={() => setShowExpenseModal(true)}
-            className="text-xs text-[#03204E] hover:underline flex items-center gap-1"
-          >
-            <Plus size={12} />
-            <span>إضافة مصروف</span>
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {expenses.map((exp) => (
-            <div key={exp.id} className="p-3 rounded-sm bg-[#F8FAFC] border border-slate-200 flex items-center justify-between text-xs">
+          {cashBalances.accounts.map((acc) => (
+            <div 
+              key={acc.id} 
+              className="bg-white rounded-sm border border-slate-200 p-3.5 shadow-xs flex flex-col justify-between"
+            >
               <div>
-                <span className="text-[10px] text-slate-400 block font-mono">{exp.date}</span>
-                <h4 className="font-medium text-slate-800">{exp.title}</h4>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-semibold text-slate-800 text-xs flex items-center gap-1.5">
+                    {getAccountIcon(acc.type)}
+                    {acc.name}
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded-sm border border-slate-200">
+                    {acc.type}
+                  </span>
+                </div>
+                {acc.identifier && (
+                  <span className="text-[11px] font-mono text-slate-500 block mb-2">
+                    {acc.identifier}
+                  </span>
+                )}
+                <div className="text-lg font-bold font-mono text-slate-900 mt-2">
+                  {formatCurrency(Math.round(acc.balance))}
+                </div>
               </div>
 
-              <div className="text-left flex items-center gap-2">
-                <span className="font-semibold text-[#b91c1c]">{exp.amount.toLocaleString()} ج.م</span>
+              <div className="pt-3 mt-3 border-t border-slate-100 flex justify-end">
                 <button
-                  onClick={() => handleDeleteExpense(exp.id)}
-                  className="p-1 text-slate-400 hover:text-red-700"
-                  title="حذف"
+                  type="button"
+                  onClick={() => handleOpenAdjust(acc)}
+                  className="text-[11px] font-semibold text-[#174F43] hover:underline"
                 >
-                  <Trash2 size={12} />
+                  {lang === 'ar' ? 'تسوية / إيداع / سحب' : 'Adjust / Deposit'}
                 </button>
               </div>
             </div>
@@ -572,73 +484,474 @@ export default function FinancePage() {
         </div>
       </div>
 
-      {/* Add Expense Modal */}
-      {showExpenseModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 rtl">
-          <div className="fixed inset-0 bg-black/40 transition-opacity duration-150" onClick={() => setShowExpenseModal(false)} />
+      {/* Outstanding Balances & Inventory Valuation Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Outstanding Receivables and Payables */}
+        <div className="bg-white rounded-sm border border-slate-200 p-4 shadow-xs space-y-3">
+          <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
+            <AlertCircle size={16} className="text-amber-600" />
+            <h2 className="text-sm font-bold text-slate-900">
+              {lang === 'ar' ? 'المستحقات المعلقة (العملاء والموردين)' : 'Outstanding Balances (Payables & Receivables)'}
+            </h2>
+          </div>
 
-          <div className="relative w-full max-w-sm bg-white rounded-sm border border-slate-200 overlay-shadow overflow-hidden z-10">
-            <div className="px-5 py-3.5 border-b border-slate-200 bg-[#F8FAFC] flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-[#03204E]">تسجيل مصروف جديد</h2>
-              <button onClick={() => setShowExpenseModal(false)} className="p-1 text-slate-400 hover:text-slate-700">
-                <X size={16} strokeWidth={1.5} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Customer Receivables */}
+            <div className="bg-slate-50 rounded-sm p-3 border border-slate-200">
+              <span className="text-xs text-slate-500 font-medium block">
+                {lang === 'ar' ? 'مستحقات معلقة لدى العملاء (تحصيل / دفع)' : 'Outstanding Customer Payments'}
+              </span>
+              <div className="text-xl font-bold font-mono text-amber-700 mt-1">
+                {formatCurrency(Math.round(outstanding.customerPayments))}
+              </div>
+              <span className="text-[11px] text-slate-400 block mt-1">
+                {outstanding.customerOrdersCount} {lang === 'ar' ? 'طلب غير مدفوع أو عند الاستلام' : 'unpaid / COD orders'}
+              </span>
+            </div>
+
+            {/* Supplier Payables */}
+            <div className="bg-slate-50 rounded-sm p-3 border border-slate-200">
+              <span className="text-xs text-slate-500 font-medium block">
+                {lang === 'ar' ? 'مستحقات معلقة للموردين (فواتير غير مسددة)' : 'Outstanding Supplier Payments'}
+              </span>
+              <div className="text-xl font-bold font-mono text-rose-700 mt-1">
+                {formatCurrency(Math.round(outstanding.supplierPayments))}
+              </div>
+              <span className="text-[11px] text-slate-400 block mt-1">
+                {outstanding.unpaidInvoicesCount} {lang === 'ar' ? 'فاتورة مشتريات غير مدفوعة' : 'unpaid purchase invoices'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Live Inventory Valuation */}
+        <div className="bg-white rounded-sm border border-slate-200 p-4 shadow-xs space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+            <div className="flex items-center gap-2">
+              <Package size={16} className="text-[#174F43]" />
+              <h2 className="text-sm font-bold text-slate-900">
+                {lang === 'ar' ? 'تقييم المخزون الحالي (قيمة الأصول)' : 'Live Inventory Asset Valuation'}
+              </h2>
+            </div>
+            <span className="text-sm font-bold font-mono text-emerald-700">
+              {formatCurrency(Math.round(inventoryValuation.totalInventoryValue))}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-slate-50 p-3 rounded-sm border border-slate-200">
+              <span className="text-xs text-slate-500 font-medium block">
+                {lang === 'ar' ? 'مخزون المواد الخام' : 'Raw Materials Stock'}
+              </span>
+              <div className="text-base font-bold font-mono text-slate-800 mt-1">
+                {formatCurrency(Math.round(inventoryValuation.rawMaterialsValue))}
+              </div>
+              <span className="text-[10px] text-slate-400 block mt-0.5">
+                {lang === 'ar' ? 'زيوت، كحول، زجاجات، مواد تغليف' : 'Oils, alcohol, packaging'}
+              </span>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-sm border border-slate-200">
+              <span className="text-xs text-slate-500 font-medium block">
+                {lang === 'ar' ? 'مخزون العطور السائلة المجهزة' : 'Finished Liquid Bulk'}
+              </span>
+              <div className="text-base font-bold font-mono text-slate-800 mt-1">
+                {formatCurrency(Math.round(inventoryValuation.finishedLiquidValue))}
+              </div>
+              <span className="text-[10px] text-slate-400 block mt-0.5">
+                {inventoryValuation.totalFinishedLiquidGrams?.toLocaleString()} {lang === 'ar' ? 'جرام مجهز' : 'g bulk ready'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* RETURNED ORDERS & SHIPPING CHARGES AUDIT SECTION */}
+      <div className="bg-white rounded-sm border border-slate-200 p-4 shadow-xs space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200">
+          <div className="flex items-center gap-2">
+            <RotateCcw size={16} className="text-amber-800" />
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">
+                {lang === 'ar' ? 'سجل وتكاليف الشحنات المرتجعة من الشحن' : 'Returned Shipments & Shipping Costs'}
+              </h2>
+              <span className="text-[11px] text-slate-500">
+                {lang === 'ar' ? 'تكاليف الشحن المتكبدة عند رفض العميل الاستلام أو ارتداد الطرد' : 'Courier charges incurred for returned and refused deliveries'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold px-2.5 py-1 bg-amber-50 text-amber-900 border border-amber-200 rounded-sm">
+              {summary.returnedOrdersCount} {lang === 'ar' ? 'شحنة مرتجعة' : 'returns'}
+            </span>
+            <span className="text-xs font-bold font-mono px-2.5 py-1 bg-slate-100 text-slate-900 border border-slate-200 rounded-sm">
+              {lang === 'ar' ? 'الإجمالي:' : 'Total:'} {formatCurrency(Math.round(summary.totalReturnShippingExpenses))}
+            </span>
+          </div>
+        </div>
+
+        {/* 4 Financial Policy Highlight Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="bg-slate-50 p-3 rounded-sm border border-slate-200">
+            <span className="text-[11px] text-slate-500 font-medium block">
+              {lang === 'ar' ? 'شحن ذهاباً للعميل (Outbound)' : 'Outbound Shipping'}
+            </span>
+            <div className="text-base font-bold font-mono text-slate-900 mt-1">
+              {formatCurrency(Math.round(summary.outboundReturnShipping))}
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-0.5">
+              {lang === 'ar' ? 'رسوم التوصيل الصادرة للعنوان' : 'Outbound courier delivery fees'}
+            </span>
+          </div>
+
+          <div className="bg-slate-50 p-3 rounded-sm border border-slate-200">
+            <span className="text-[11px] text-slate-500 font-medium block">
+              {lang === 'ar' ? 'شحن إياباً / عودة (Inbound)' : 'Return Transit Fee'}
+            </span>
+            <div className="text-base font-bold font-mono text-slate-900 mt-1">
+              {formatCurrency(Math.round(summary.inboundReturnShipping))}
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-0.5">
+              {lang === 'ar' ? 'رسوم العودة للمقر / المخزن' : 'Inbound return transport fee'}
+            </span>
+          </div>
+
+          <div className="bg-slate-50 p-3 rounded-sm border border-slate-200">
+            <span className="text-[11px] text-slate-500 font-medium block">
+              {lang === 'ar' ? 'الأثر المالي على صافي الربح' : 'Net Profit Impact'}
+            </span>
+            <div className="text-base font-bold font-mono text-rose-700 mt-1">
+              -{formatCurrency(Math.round(summary.totalReturnShippingExpenses))}
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-0.5">
+              {lang === 'ar' ? 'يُخصم كمصروف نقل وتشغيل' : 'Deducted as transit expense'}
+            </span>
+          </div>
+
+          <div className="bg-emerald-50/70 p-3 rounded-sm border border-emerald-200">
+            <span className="text-[11px] text-emerald-900 font-semibold block flex items-center gap-1">
+              <ShieldCheck size={13} className="text-emerald-700" />
+              <span>{lang === 'ar' ? 'حماية تكلفة التصنيع (COGS)' : 'COGS Protection'}</span>
+            </span>
+            <div className="text-sm font-bold font-mono text-emerald-800 mt-1">
+              0.00 {lang === 'ar' ? 'ج.م' : 'EGP'}
+            </div>
+            <span className="text-[10px] text-emerald-700 block mt-0.5">
+              {lang === 'ar' ? 'لا تؤثر على تكلفة تصنيع المنتج' : 'Zero impact on product manufacturing cost'}
+            </span>
+          </div>
+        </div>
+
+        {/* Policy Explainer Note */}
+        <div className="p-3 bg-amber-50/60 rounded-sm border border-amber-200/90 text-amber-950 text-xs leading-relaxed">
+          <p className="font-semibold mb-0.5">
+            {lang === 'ar' ? 'قواعد معالجة المرتجعات المالية في دار M20:' : 'M20 Return Finance Rules:'}
+          </p>
+          <p className="text-[11px] text-slate-700">
+            {lang === 'ar'
+              ? 'الطلبات المرتجعة أو غير المستلمة لا تُحسب ضمن إيرادات المبيعات المحققة. وتتحمل الشركة مصاريف الشحن كاملة لشركة الشحن وتُخصم من صافي الربح فقط. كما لا يُسترجع السائل للمخزون تلقائياً، بل ينتظر تأكيد الفحص الفعلي والتأكد من سلامة العبوة من لوحة الطلبات.'
+              : 'Undelivered orders are excluded from sales revenue. Courier fees are charged to the business and deducted from net profit without touching product manufacturing cost. Liquid is only restocked after physical inspection.'}
+          </p>
+        </div>
+
+        {/* Returned Shipments Table */}
+        <div className="border border-slate-200 rounded-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-right text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600">
+                <tr>
+                  <th className="p-2.5">{lang === 'ar' ? 'رقم الطلب' : 'Order #'}</th>
+                  <th className="p-2.5">{lang === 'ar' ? 'العميل' : 'Customer'}</th>
+                  <th className="p-2.5 text-center">{lang === 'ar' ? 'شحن ذهاباً' : 'Outbound'}</th>
+                  <th className="p-2.5 text-center">{lang === 'ar' ? 'شحن عودة' : 'Return'}</th>
+                  <th className="p-2.5 text-center">{lang === 'ar' ? 'إجمالي الشحن' : 'Total Cost'}</th>
+                  <th className="p-2.5">{lang === 'ar' ? 'سبب الارتجاع' : 'Return Reason'}</th>
+                  <th className="p-2.5 text-center">{lang === 'ar' ? 'فحص المخزون' : 'Inspection'}</th>
+                  <th className="p-2.5 text-center">{lang === 'ar' ? 'الاسترداد' : 'Refund'}</th>
+                  <th className="p-2.5 text-left">{lang === 'ar' ? 'الطلب' : 'View'}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {returnedShipments.orders && returnedShipments.orders.length > 0 ? (
+                  returnedShipments.orders.map((o, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="p-2.5 font-bold font-mono text-[#174F43]">
+                        #{o.orderNumber}
+                      </td>
+                      <td className="p-2.5">
+                        <div className="font-semibold text-slate-900">{o.customerName || 'عميل M20'}</div>
+                        {o.customerPhone && (
+                          <div className="text-[10px] text-slate-400 font-mono">{o.customerPhone}</div>
+                        )}
+                      </td>
+                      <td className="p-2.5 text-center font-mono text-slate-700">
+                        {o.outboundShippingFee?.toLocaleString()} ج.م
+                      </td>
+                      <td className="p-2.5 text-center font-mono text-slate-700">
+                        {o.returnShippingFee?.toLocaleString()} ج.م
+                      </td>
+                      <td className="p-2.5 text-center font-mono font-bold text-rose-700">
+                        {o.totalReturnShippingCost?.toLocaleString()} ج.م
+                      </td>
+                      <td className="p-2.5 text-slate-700 text-[11px] max-w-[200px] truncate" title={o.returnReason}>
+                        {o.returnReason || '-'}
+                      </td>
+                      <td className="p-2.5 text-center">
+                        {o.restockStatus === 'inspected_restocked' ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            <CheckCircle2 size={11} /> {lang === 'ar' ? 'تم استرجاع السائل' : 'Restocked'}
+                          </span>
+                        ) : o.restockStatus === 'inspected_damaged_discarded' ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
+                            <XCircle size={11} /> {lang === 'ar' ? 'تالف ومستبعد' : 'Damaged'}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                            <Clock size={11} /> {lang === 'ar' ? 'قيد انتظار الفحص' : 'Pending Inspection'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-2.5 text-center">
+                        {o.refundStatus === 'refunded' ? (
+                          <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 font-mono">
+                            {lang === 'ar' ? 'تم الاسترداد' : 'Refunded'} ({o.refundAmount} ج.م)
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 font-mono">
+                            {lang === 'ar' ? 'غير مطلوب' : 'N/A'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-2.5 text-left">
+                        <Link
+                          to={`/orders?id=${o.orderId}`}
+                          className="inline-flex items-center gap-1 text-slate-600 hover:text-[#174F43] font-semibold text-[11px]"
+                        >
+                          <span>{lang === 'ar' ? 'عرض' : 'View'}</span>
+                          <ExternalLink size={12} />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={9} className="p-6 text-center text-slate-400 text-xs">
+                      {lang === 'ar' ? 'لا توجد شحنات مرتجعة مسجلة خلال الفترة المحددة.' : 'No returned shipments recorded for the selected period.'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {showCostModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+          <div className="relative w-full max-w-md bg-white rounded-sm border border-slate-200 shadow-xl z-10 max-h-[90vh] overflow-y-auto">
+            <div className="px-5 py-3.5 border-b border-slate-200 bg-[#174F43] text-white flex items-center justify-between">
+              <h2 className="text-sm font-bold flex items-center gap-2">
+                <Sliders size={16} />
+                <span>{lang === 'ar' ? 'إعدادات التكاليف الافتراضية للمنتجات' : 'Automated Product Cost Settings'}</span>
+              </h2>
+              <button onClick={() => setShowCostModal(false)} className="p-1 text-white/80 hover:text-white">
+                <X size={16} />
               </button>
             </div>
 
-            <form onSubmit={handleAddExpense} className="p-5 space-y-3.5 text-xs">
+            <form onSubmit={handleSaveCosts} className="p-5 space-y-3.5 text-xs">
+              <p className="text-slate-500 leading-relaxed">
+                {lang === 'ar'
+                  ? 'هذه التكاليف تُحسب تلقائياً لكل زجاجة تُباع لخصم تكلفة البضاعة المباعة (COGS) بدقة دون الحاجة لإدخال يدوي مكرر.'
+                  : 'These default unit costs are automatically applied to every sold unit to calculate true COGS.'}
+              </p>
+
               <div>
-                <label className="block font-medium text-slate-700 mb-1">اسم المصروف *</label>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {lang === 'ar' ? 'تكلفة الزجاجة مع الرشاش والغطاء (ج.م) *' : 'Bottle w/ Sprayer & Cap Cost (EGP) *'}
+                </label>
                 <input
-                  type="text"
+                  type="number"
+                  step="0.5"
+                  min="0"
                   required
-                  value={newExpense.title}
-                  onChange={(e) => setNewExpense({ ...newExpense, title: e.target.value })}
-                  placeholder="مواد تغليف"
-                  className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs outline-none focus:border-[#03204E]"
+                  value={costForm.bottleWithCapSprayer}
+                  onChange={(e) => setCostForm({ ...costForm, bottleWithCapSprayer: e.target.value })}
+                  placeholder="45"
+                  className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono font-bold outline-none focus:border-[#174F43]"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">التصنيف</label>
-                  <select
-                    value={newExpense.category}
-                    onChange={(e) => setNewExpense({ ...newExpense, category: e.target.value })}
-                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-2 text-xs outline-none"
-                  >
-                    <option value="marketing">تسويق</option>
-                    <option value="packaging">تغليف وشحن</option>
-                    <option value="operations">تشغيل</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {lang === 'ar' ? 'تكلفة الستيكر / الليبل للزجاجة (ج.م) *' : 'Sticker / Label Cost (EGP) *'}
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  required
+                  value={costForm.sticker}
+                  onChange={(e) => setCostForm({ ...costForm, sticker: e.target.value })}
+                  placeholder="20"
+                  className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono font-bold outline-none focus:border-[#174F43]"
+                />
+              </div>
 
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">المبلغ (ج.م) *</label>
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    value={newExpense.amount}
-                    onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })}
-                    placeholder="1000"
-                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs outline-none"
-                  />
-                </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {lang === 'ar' ? 'تكلفة العلبة الفاخرة للزجاجة (ج.م) *' : 'Packaging Box Cost (EGP) *'}
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  required
+                  value={costForm.box}
+                  onChange={(e) => setCostForm({ ...costForm, box: e.target.value })}
+                  placeholder="25"
+                  className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono font-bold outline-none focus:border-[#174F43]"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {lang === 'ar' ? 'مخصص التسويق التقديري لكل زجاجة (ج.م) *' : 'Marketing Allocation per Bottle (EGP) *'}
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  required
+                  value={costForm.marketingPerBottle}
+                  onChange={(e) => setCostForm({ ...costForm, marketingPerBottle: e.target.value })}
+                  placeholder="20"
+                  className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono font-bold outline-none focus:border-[#174F43]"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {lang === 'ar' ? 'الكثافة الافتراضية لسائل العطر (g/ml) *' : 'Default Liquid Density (g/ml) *'}
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.5"
+                  max="1.5"
+                  required
+                  value={costForm.defaultLiquidDensity}
+                  onChange={(e) => setCostForm({ ...costForm, defaultLiquidDensity: e.target.value })}
+                  placeholder="0.86"
+                  className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono font-bold outline-none focus:border-[#174F43]"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  {lang === 'ar' ? 'تُستخدم لتحويل الحجم (50ml / 100ml) لوزن بالجرام لخصم السائل بدقة.' : 'Used to convert ml to grams for accurate liquid deduction.'}
+                </span>
               </div>
 
               <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowExpenseModal(false)}
-                  className="px-4 py-2 border border-slate-200 rounded-sm hover:bg-slate-50 text-slate-700 h-9"
+                  onClick={() => setShowCostModal(false)}
+                  className="px-4 py-2 border border-slate-200 rounded-sm hover:bg-slate-50 text-slate-700 font-medium"
                 >
-                  إلغاء
+                  {lang === 'ar' ? 'إلغاء' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-[#03204E] text-white rounded-sm hover:bg-[#02183b] h-9 font-medium"
+                  disabled={savingCosts}
+                  className="px-5 py-2 bg-[#174F43] text-white rounded-sm hover:bg-[#0F3830] font-semibold disabled:opacity-50"
                 >
-                  إضافة
+                  {savingCosts ? (lang === 'ar' ? 'جاري الحفظ...' : 'Saving...') : (lang === 'ar' ? 'حفظ الإعدادات' : 'Save Defaults')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Cash Account Adjustment Modal */}
+      {showAdjustModal && selectedAccount && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+          <div className="relative w-full max-w-sm bg-white rounded-sm border border-slate-200 shadow-xl z-10">
+            <div className="px-5 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+              <h2 className="text-sm font-bold text-slate-900">
+                {lang === 'ar' ? `تسوية حساب: ${selectedAccount.name}` : `Adjust Account: ${selectedAccount.name}`}
+              </h2>
+              <button onClick={() => setShowAdjustModal(false)} className="p-1 text-slate-400 hover:text-slate-700">
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitAdjust} className="p-5 space-y-3.5 text-xs">
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-sm">
+                <span className="text-slate-500 font-medium block">
+                  {lang === 'ar' ? 'الرصيد المسجل حالياً:' : 'Current Balance:'}
+                </span>
+                <span className="text-base font-bold text-slate-900 font-mono">
+                  {formatCurrency(Math.round(selectedAccount.balance))}
+                </span>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {lang === 'ar' ? 'نوع الحركة *' : 'Transaction Type *'}
+                </label>
+                <select
+                  value={adjustForm.type}
+                  onChange={(e) => setAdjustForm({ ...adjustForm, type: e.target.value })}
+                  className="w-full h-9 bg-white border border-slate-200 rounded-sm px-2 text-xs font-semibold outline-none"
+                >
+                  <option value="deposit">{lang === 'ar' ? 'إيداع / زيادة رصيد (+)' : 'Deposit / Add Funds (+)'}</option>
+                  <option value="withdrawal">{lang === 'ar' ? 'سحب / خصم رصيد (-)' : 'Withdrawal / Deduct Funds (-)'}</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {lang === 'ar' ? 'المبلغ (ج.م) *' : 'Amount (EGP) *'}
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0.01"
+                  required
+                  value={adjustForm.amount}
+                  onChange={(e) => setAdjustForm({ ...adjustForm, amount: e.target.value })}
+                  placeholder="1000"
+                  className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono font-bold outline-none focus:border-[#174F43]"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {lang === 'ar' ? 'السبب / بيان الحركة *' : 'Reason / Note *'}
+                </label>
+                <textarea
+                  rows="2"
+                  required
+                  value={adjustForm.reason}
+                  onChange={(e) => setAdjustForm({ ...adjustForm, reason: e.target.value })}
+                  placeholder={lang === 'ar' ? 'مثال: تسوية رصيد بنكي شهري...' : 'e.g. Monthly bank reconciliation...'}
+                  className="w-full bg-white border border-slate-200 rounded-sm p-2 text-xs outline-none focus:border-[#174F43]"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAdjustModal(false)}
+                  className="px-4 py-2 border border-slate-200 rounded-sm hover:bg-slate-50 text-slate-700 font-medium"
+                >
+                  {lang === 'ar' ? 'إلغاء' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingAdjust}
+                  className="px-5 py-2 bg-[#174F43] text-white rounded-sm hover:bg-[#0F3830] font-semibold disabled:opacity-50"
+                >
+                  {submittingAdjust ? (lang === 'ar' ? 'جاري التأكيد...' : 'Saving...') : (lang === 'ar' ? 'تأكيد التسوية' : 'Confirm')}
                 </button>
               </div>
             </form>

@@ -76,9 +76,7 @@ export default function BatchesPage() {
       
       const allMats = Array.isArray(mData) ? mData : [];
       setAlcoholMaterials(allMats.filter(m => m.category === 'alcohol'));
-      setPackagingMaterials(allMats.filter(m => 
-        ['bottle', 'box', 'sticker', 'bag', 'tester', 'packaging_bottle', 'packaging_box', 'packaging_cap', 'packaging_pump', 'packaging_bag', 'label_sticker'].includes(m.category)
-      ));
+      setPackagingMaterials(allMats.filter(m => m.category !== 'fragrance_oil' && m.category !== 'alcohol'));
       setProducts(Array.isArray(pData) ? pData : []);
 
       // Pre-select first alcohol if available
@@ -112,7 +110,10 @@ export default function BatchesPage() {
     try {
       const data = await previewBatchCalculation({
         formulaId: batchForm.formulaId,
+        formula: batchForm.formulaId,
+        finalBatchWeight: Number(batchForm.totalWeightGrams),
         totalWeightGrams: Number(batchForm.totalWeightGrams),
+        concentration: Number(batchForm.concentrationPercent),
         concentrationPercent: Number(batchForm.concentrationPercent),
         alcoholRawMaterialId: batchForm.alcoholRawMaterialId || undefined,
       });
@@ -130,7 +131,7 @@ export default function BatchesPage() {
       ...prev,
       formulaId,
       concentrationPercent: f?.defaultConcentration || 25,
-      batchCode: `BATCH-${f?.code || 'ELAN'}-${new Date().toISOString().slice(2, 7).replace('-', '')}-${Math.floor(100 + Math.random() * 900)}`,
+      batchCode: `BATCH-${f?.code || 'M20'}-${new Date().toISOString().slice(2, 7).replace('-', '')}-${Math.floor(100 + Math.random() * 900)}`,
     }));
   };
 
@@ -138,7 +139,7 @@ export default function BatchesPage() {
     const defaultAlc = alcoholMaterials[0]?._id || '';
     setBatchForm({
       formulaId: formulas[0]?._id || '',
-      batchCode: `BATCH-ELAN-${new Date().toISOString().slice(2, 7).replace('-', '')}-${Math.floor(100 + Math.random() * 900)}`,
+      batchCode: `BATCH-M20-${new Date().toISOString().slice(2, 7).replace('-', '')}-${Math.floor(100 + Math.random() * 900)}`,
       totalWeightGrams: 5000,
       concentrationPercent: formulas[0]?.defaultConcentration || 25,
       alcoholRawMaterialId: defaultAlc,
@@ -152,15 +153,20 @@ export default function BatchesPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await createBatch({
+      const payload = {
+        formulaId: batchForm.formulaId,
         formula: batchForm.formulaId,
         batchCode: batchForm.batchCode,
+        batchNumber: batchForm.batchCode,
+        finalBatchWeight: Number(batchForm.totalWeightGrams),
         totalWeightGrams: Number(batchForm.totalWeightGrams),
+        concentration: Number(batchForm.concentrationPercent),
         concentrationPercent: Number(batchForm.concentrationPercent),
         alcoholRawMaterialId: batchForm.alcoholRawMaterialId,
         productionDate: batchForm.productionDate,
         notes: batchForm.notes,
-      });
+      };
+      await createBatch(payload);
       showSuccess('تم إنشاء الدفعة بنجاح', 'تم تسجيل وتأكيد دفعة الإنتاج الجديدة وحسم الخامات');
       setShowCreateModal(false);
       fetchData();
@@ -306,12 +312,12 @@ export default function BatchesPage() {
   const totalFinishedUnitCost = unitLiquidCost + unitPackagingTotal;
 
   return (
-    <div className="space-y-6 text-right font-['Tajawal',sans-serif]">
+    <div className="space-y-6 text-right font-['Cairo',sans-serif]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-200">
         <div>
-          <h1 className="text-xl font-bold text-[#03204E] flex items-center gap-2">
-            <Package size={20} strokeWidth={1.5} className="text-[#03204E]" />
+          <h1 className="text-xl font-bold text-[#174F43] flex items-center gap-2">
+            <Package size={20} strokeWidth={1.5} className="text-[#174F43]" />
             <span>التشغيلات ودفعات الإنتاج (Production Batches)</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -322,7 +328,7 @@ export default function BatchesPage() {
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <button
             onClick={handleOpenCreate}
-            className="px-3.5 py-2 rounded-sm bg-[#03204E] hover:bg-[#02183b] text-white text-xs font-medium flex items-center gap-1.5 transition-colors duration-150 h-9"
+            className="px-3.5 py-2 rounded-sm bg-[#174F43] hover:bg-[#0F3830] text-white text-xs font-medium flex items-center gap-1.5 transition-colors duration-150 h-9"
           >
             <Plus size={14} />
             <span>إنشاء تشغيلة إنتاج جديدة</span>
@@ -360,7 +366,7 @@ export default function BatchesPage() {
                 <tr>
                   <td colSpan="9" className="py-8 text-center text-slate-400">
                     <div className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-[#03204E] border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-4 h-4 border-2 border-[#174F43] border-t-transparent rounded-full animate-spin"></div>
                       <span>جاري تحميل التشغيلات...</span>
                     </div>
                   </td>
@@ -380,7 +386,7 @@ export default function BatchesPage() {
                   return (
                     <tr key={batch._id} className="hover:bg-slate-50 transition-colors">
                       <td className="py-3 px-4 font-mono font-bold text-slate-900">
-                        {batch.batchCode}
+                        {batch.batchCode || batch.batchNumber}
                         <span className="block text-[10px] text-slate-400 font-normal mt-0.5">
                           {new Date(batch.productionDate).toLocaleDateString('ar-EG')}
                         </span>
@@ -388,19 +394,19 @@ export default function BatchesPage() {
 
                       <td className="py-3 px-4">
                         <span className="font-semibold text-slate-800">
-                          {batch.formulaSnapshot?.name || batch.formula?.name || 'تركيبة مخصصة'}
+                          {batch.formulaSnapshot?.name || batch.formula?.fragranceName || batch.formula?.name || batch.fragranceName || 'تركيبة مخصصة'}
                         </span>
                         <span className="text-[10px] text-slate-400 block font-mono">
-                          v{batch.formulaSnapshot?.version || batch.formula?.version || 1}
+                          v{batch.formulaSnapshot?.version || batch.formula?.version || batch.formulaVersion || 1}
                         </span>
                       </td>
 
                       <td className="py-3 px-4 text-center font-mono font-bold text-slate-900">
-                        {batch.totalWeightGrams.toLocaleString()} g
+                        {(batch.totalWeightGrams || batch.finalBatchWeight || 0).toLocaleString()} g
                       </td>
 
                       <td className="py-3 px-4 text-center font-mono font-medium text-slate-700">
-                        {batch.concentrationPercent}%
+                        {batch.concentrationPercent || batch.concentration || 0}%
                       </td>
 
                       <td className="py-3 px-4 text-center font-mono font-medium text-slate-900">
@@ -412,8 +418,8 @@ export default function BatchesPage() {
                       </td>
 
                       <td className="py-3 px-4 text-center font-mono">
-                        <span className={`font-bold ${batch.remainingLiquidGrams > 0 ? 'text-indigo-700' : 'text-slate-400'}`}>
-                          {batch.remainingLiquidGrams?.toLocaleString()} g
+                        <span className={`font-bold ${(batch.remainingLiquidGrams ?? batch.finalBatchWeight ?? 0) > 0 ? 'text-indigo-700' : 'text-slate-400'}`}>
+                          {(batch.remainingLiquidGrams ?? batch.finalBatchWeight ?? 0)?.toLocaleString()} g
                         </span>
                       </td>
 
@@ -429,7 +435,7 @@ export default function BatchesPage() {
                             <button
                               onClick={() => handleConfirmBatch(batch)}
                               title="تأكيد الخلط وحسم المواد من المخزون"
-                              className="px-2.5 py-1 bg-[#03204E] hover:bg-[#02183b] text-white rounded-sm text-[11px] font-medium transition-colors"
+                              className="px-2.5 py-1 bg-[#174F43] hover:bg-[#0F3830] text-white rounded-sm text-[11px] font-medium transition-colors"
                             >
                               تأكيد وخصم
                             </button>
@@ -439,9 +445,9 @@ export default function BatchesPage() {
                             <button
                               onClick={() => handleOpenBottling(batch)}
                               title="تعبئة زجاجات تامة الصنع"
-                              className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-sm text-[11px] font-medium flex items-center gap-1 transition-colors"
+                              className="px-2.5 py-1 bg-[#174F43] hover:bg-[#0F3830] text-white rounded-sm text-[11px] font-medium flex items-center gap-1 transition-colors"
                             >
-                              <Box size={12} />
+                              <Box size={12} className="text-[#FF9D00]" />
                               <span>تعبئة وتغليف</span>
                             </button>
                           )}
@@ -472,7 +478,7 @@ export default function BatchesPage() {
           <div className="fixed inset-0 bg-black/40" onClick={() => setShowCreateModal(false)} />
           <div className="relative w-full max-w-2xl bg-white rounded-sm border border-slate-200 overlay-shadow z-10 max-h-[90vh] flex flex-col overflow-hidden">
             <div className="px-5 py-3.5 border-b border-slate-200 bg-[#F8FAFC] flex items-center justify-between shrink-0">
-              <h2 className="text-sm font-semibold text-[#03204E] flex items-center gap-1.5">
+              <h2 className="text-sm font-semibold text-[#174F43] flex items-center gap-1.5">
                 <FlaskConical size={16} />
                 <span>إنشاء دفعة إنتاج جديدة (Production Batch)</span>
               </h2>
@@ -489,7 +495,7 @@ export default function BatchesPage() {
                     value={batchForm.formulaId}
                     onChange={(e) => handleFormulaSelect(e.target.value)}
                     required
-                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-2 text-xs outline-none focus:border-[#03204E]"
+                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-2 text-xs outline-none focus:border-[#174F43]"
                   >
                     <option value="">-- اختر التركيبة --</option>
                     {formulas.map(f => (
@@ -507,7 +513,7 @@ export default function BatchesPage() {
                     required
                     value={batchForm.batchCode}
                     onChange={(e) => setBatchForm({ ...batchForm, batchCode: e.target.value })}
-                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none focus:border-[#03204E]"
+                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none focus:border-[#174F43]"
                   />
                 </div>
               </div>
@@ -523,7 +529,7 @@ export default function BatchesPage() {
                     value={batchForm.totalWeightGrams}
                     onChange={(e) => setBatchForm({ ...batchForm, totalWeightGrams: e.target.value })}
                     placeholder="5000"
-                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none focus:border-[#03204E]"
+                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none focus:border-[#174F43]"
                   />
                 </div>
 
@@ -538,7 +544,7 @@ export default function BatchesPage() {
                     value={batchForm.concentrationPercent}
                     onChange={(e) => setBatchForm({ ...batchForm, concentrationPercent: e.target.value })}
                     placeholder="25"
-                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none focus:border-[#03204E]"
+                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none focus:border-[#174F43]"
                   />
                 </div>
 
@@ -619,7 +625,7 @@ export default function BatchesPage() {
                   value={batchForm.notes}
                   onChange={(e) => setBatchForm({ ...batchForm, notes: e.target.value })}
                   placeholder="ملاحظات حول وقت الخلط، درجة الحرارة، فترة التعتيق المستهدفة..."
-                  className="w-full bg-white border border-slate-200 rounded-sm p-2 text-xs outline-none focus:border-[#03204E]"
+                  className="w-full bg-white border border-slate-200 rounded-sm p-2 text-xs outline-none focus:border-[#174F43]"
                 />
               </div>
 
@@ -634,7 +640,7 @@ export default function BatchesPage() {
                 <button
                   type="submit"
                   disabled={submitting || !batchForm.formulaId}
-                  className="px-5 py-2 bg-[#03204E] text-white rounded-sm hover:bg-[#02183b] h-9 font-medium disabled:opacity-50"
+                  className="px-5 py-2 bg-[#174F43] text-white rounded-sm hover:bg-[#0F3830] h-9 font-medium disabled:opacity-50"
                 >
                   {submitting ? 'جاري الحفظ...' : 'إنشاء مسودة التشغيلة'}
                 </button>
@@ -650,7 +656,7 @@ export default function BatchesPage() {
           <div className="fixed inset-0 bg-black/40" onClick={() => setShowBottlingModal(false)} />
           <div className="relative w-full max-w-xl bg-white rounded-sm border border-slate-200 overlay-shadow z-10 max-h-[90vh] flex flex-col overflow-hidden">
             <div className="px-5 py-3.5 border-b border-slate-200 bg-[#F8FAFC] flex items-center justify-between shrink-0">
-              <h2 className="text-sm font-semibold text-[#03204E] flex items-center gap-1.5">
+              <h2 className="text-sm font-semibold text-[#174F43] flex items-center gap-1.5">
                 <Box size={16} />
                 <span>تعبئة وتحويل لمنتج نهائي (Finished Product Bottling)</span>
               </h2>
@@ -712,7 +718,7 @@ export default function BatchesPage() {
                     required
                     value={bottlingForm.unitsBottled}
                     onChange={(e) => setBottlingForm({ ...bottlingForm, unitsBottled: e.target.value })}
-                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none focus:border-[#03204E]"
+                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none focus:border-[#174F43]"
                   />
                 </div>
 
@@ -726,7 +732,7 @@ export default function BatchesPage() {
                     value={bottlingForm.targetWeightGramsPerUnit}
                     onChange={(e) => setBottlingForm({ ...bottlingForm, targetWeightGramsPerUnit: e.target.value })}
                     placeholder="45"
-                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none focus:border-[#03204E]"
+                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none focus:border-[#174F43]"
                   />
                 </div>
               </div>
@@ -744,8 +750,8 @@ export default function BatchesPage() {
                       className="w-full h-8 bg-white border border-slate-200 rounded-sm px-2 text-xs outline-none"
                     >
                       <option value="">-- بدون زجاجة مسجلة --</option>
-                      {packagingMaterials.filter(m => m.category === 'packaging_bottle').map(m => (
-                        <option key={m._id} value={m._id}>{m.name} ({m.costPerGram} ج.م)</option>
+                      {packagingMaterials.filter(m => ['bottle', 'packaging_bottle'].includes(m.category) || m.name?.includes('زجاج') || m.name?.includes('ازاز') || m.name?.toLowerCase().includes('bottle')).map(m => (
+                        <option key={m._id} value={m._id}>{m.name} ({m.costPerGram || 0} ج.م)</option>
                       ))}
                     </select>
                   </div>
@@ -758,8 +764,8 @@ export default function BatchesPage() {
                       className="w-full h-8 bg-white border border-slate-200 rounded-sm px-2 text-xs outline-none"
                     >
                       <option value="">-- بدون علبة --</option>
-                      {packagingMaterials.filter(m => m.category === 'packaging_box').map(m => (
-                        <option key={m._id} value={m._id}>{m.name} ({m.costPerGram} ج.م)</option>
+                      {packagingMaterials.filter(m => ['box', 'packaging_box'].includes(m.category) || m.name?.includes('علب') || m.name?.includes('كرتون') || m.name?.includes('بكدج') || m.name?.includes('باكدج') || m.name?.toLowerCase().includes('box') || m.name?.toLowerCase().includes('package')).map(m => (
+                        <option key={m._id} value={m._id}>{m.name} ({m.costPerGram || 0} ج.م)</option>
                       ))}
                     </select>
                   </div>
@@ -774,8 +780,8 @@ export default function BatchesPage() {
                       className="w-full h-8 bg-white border border-slate-200 rounded-sm px-2 text-xs outline-none"
                     >
                       <option value="">-- بدون غطاء --</option>
-                      {packagingMaterials.filter(m => m.category === 'packaging_cap').map(m => (
-                        <option key={m._id} value={m._id}>{m.name} ({m.costPerGram} ج.م)</option>
+                      {packagingMaterials.filter(m => ['cap', 'packaging_cap', 'other'].includes(m.category) || m.name?.includes('غطا') || m.name?.includes('كاب') || m.name?.toLowerCase().includes('cap')).map(m => (
+                        <option key={m._id} value={m._id}>{m.name} ({m.costPerGram || 0} ج.م)</option>
                       ))}
                     </select>
                   </div>
@@ -788,8 +794,8 @@ export default function BatchesPage() {
                       className="w-full h-8 bg-white border border-slate-200 rounded-sm px-2 text-xs outline-none"
                     >
                       <option value="">-- بدون ستيكر --</option>
-                      {packagingMaterials.filter(m => m.category === 'label_sticker').map(m => (
-                        <option key={m._id} value={m._id}>{m.name} ({m.costPerGram} ج.م)</option>
+                      {packagingMaterials.filter(m => ['sticker', 'label_sticker'].includes(m.category) || m.name?.includes('ستيكر') || m.name?.includes('ليبل') || m.name?.includes('ملصق') || m.name?.toLowerCase().includes('sticker') || m.name?.toLowerCase().includes('label')).map(m => (
+                        <option key={m._id} value={m._id}>{m.name} ({m.costPerGram || 0} ج.م)</option>
                       ))}
                     </select>
                   </div>
@@ -802,8 +808,8 @@ export default function BatchesPage() {
                       className="w-full h-8 bg-white border border-slate-200 rounded-sm px-2 text-xs outline-none"
                     >
                       <option value="">-- بدون كيس --</option>
-                      {packagingMaterials.filter(m => m.category === 'packaging_bag').map(m => (
-                        <option key={m._id} value={m._id}>{m.name} ({m.costPerGram} ج.م)</option>
+                      {packagingMaterials.filter(m => ['bag', 'packaging_bag'].includes(m.category) || m.name?.includes('كيس') || m.name?.includes('شنطة') || m.name?.toLowerCase().includes('bag')).map(m => (
+                        <option key={m._id} value={m._id}>{m.name} ({m.costPerGram || 0} ج.م)</option>
                       ))}
                     </select>
                   </div>
@@ -835,7 +841,7 @@ export default function BatchesPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2 bg-emerald-700 text-white rounded-sm hover:bg-emerald-800 h-9 font-medium disabled:opacity-50"
+                  className="px-5 py-2 bg-[#174F43] text-white rounded-sm hover:bg-[#0F3830] h-9 font-medium disabled:opacity-50 flex items-center justify-center gap-1.5"
                 >
                   {submitting ? 'جاري التعبئة...' : 'تأكيد التعبئة وإضافة المخزون التام'}
                 </button>
@@ -847,3 +853,4 @@ export default function BatchesPage() {
     </div>
   );
 }
+

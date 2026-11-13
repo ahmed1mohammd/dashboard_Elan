@@ -1,16 +1,19 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { LanguageProvider } from './context/LanguageContext';
 import DashboardLayout from './components/layout/DashboardLayout';
 import LoginPage from './pages/LoginPage';
 import OverviewPage from './pages/OverviewPage';
 import ProductsPage from './pages/ProductsPage';
 import OrdersPage from './pages/OrdersPage';
 import CouponsPage from './pages/CouponsPage';
+import OffersPage from './pages/OffersPage';
 import UsersPage from './pages/UsersPage';
 import CMSPage from './pages/CMSPage';
 import FinancePage from './pages/FinancePage';
 import RawMaterialsPage from './pages/RawMaterialsPage';
+import FinishedLiquidPage from './pages/FinishedLiquidPage';
 import FormulasPage from './pages/FormulasPage';
 import BatchesPage from './pages/BatchesPage';
 import PurchasesPage from './pages/PurchasesPage';
@@ -25,10 +28,10 @@ const ProtectedRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#02183b] flex items-center justify-center text-amber-300">
+      <div className="min-h-screen bg-[#174F43] flex items-center justify-center text-[#FF9D00]">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-          <span className="text-xs font-bold font-mono tracking-widest text-white">ÉLAN ADMIN...</span>
+          <div className="w-10 h-10 border-4 border-[#FF9D00] border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-xs font-bold font-mono tracking-widest text-white">M20 ADMIN...</span>
         </div>
       </div>
     );
@@ -43,8 +46,9 @@ const ProtectedRoute = ({ children }) => {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <Router>
+    <LanguageProvider>
+      <AuthProvider>
+        <Router>
         <Routes>
           {/* Public Login Route */}
           <Route path="/login" element={<LoginPage />} />
@@ -75,15 +79,23 @@ export default function App() {
             }
           />
           <Route
-            path="/formulas"
+            path="/inventory/finished-liquid"
             element={
               <ProtectedRoute>
-                <FormulasPage />
+                <FinishedLiquidPage />
               </ProtectedRoute>
             }
           />
           <Route
             path="/batches"
+            element={
+              <ProtectedRoute>
+                <FinishedLiquidPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/batches/advanced"
             element={
               <ProtectedRoute>
                 <BatchesPage />
@@ -95,6 +107,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ProductsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/formulas"
+            element={
+              <ProtectedRoute>
+                <FormulasPage />
               </ProtectedRoute>
             }
           />
@@ -155,6 +175,14 @@ export default function App() {
             }
           />
           <Route
+            path="/offers"
+            element={
+              <ProtectedRoute>
+                <OffersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/users"
             element={
               <ProtectedRoute>
@@ -176,6 +204,7 @@ export default function App() {
         </Routes>
       </Router>
     </AuthProvider>
+  </LanguageProvider>
   );
 }
 

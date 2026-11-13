@@ -10,7 +10,7 @@ const API = axios.create({
 // Attach Authorization Bearer token from localStorage
 API.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('elan_admin_token');
+    const token = localStorage.getItem('m20_admin_token') || localStorage.getItem('elan_admin_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -26,6 +26,8 @@ API.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       // Token expired or invalid
       if (window.location.pathname !== '/login') {
+        localStorage.removeItem('m20_admin_token');
+        localStorage.removeItem('m20_admin_user');
         localStorage.removeItem('elan_admin_token');
         localStorage.removeItem('elan_admin_user');
         window.location.href = '/login';
@@ -35,9 +37,9 @@ API.interceptors.response.use(
   }
 );
 
-// ==================== AUTH ====================
-export const loginAdmin = async (phone) => {
-  const res = await API.post('/auth/login', { phone });
+export const loginAdmin = async (credentials) => {
+  const payload = typeof credentials === 'string' ? { identifier: credentials } : credentials;
+  const res = await API.post('/auth/login', payload);
   return res.data;
 };
 
@@ -88,8 +90,21 @@ export const getOrderById = async (id) => {
   return res.data?.data || null;
 };
 
-export const updateOrderStatus = async (id, status) => {
-  const res = await API.patch(`/orders/${id}/status`, { orderStatus: status });
+export const updateOrderStatus = async (id, statusOrPayload) => {
+  const payload = typeof statusOrPayload === 'string' 
+    ? { orderStatus: statusOrPayload } 
+    : statusOrPayload;
+  const res = await API.patch(`/orders/${id}/status`, payload);
+  return res.data?.data || res.data;
+};
+
+export const confirmReturnRestock = async (id, data = {}) => {
+  const res = await API.post(`/orders/${id}/confirm-return-restock`, data);
+  return res.data?.data || res.data;
+};
+
+export const processReturnRefund = async (id, data = {}) => {
+  const res = await API.post(`/orders/${id}/process-return-refund`, data);
   return res.data?.data || res.data;
 };
 
@@ -111,6 +126,16 @@ export const getCoupons = async () => {
 
 export const createCoupon = async (couponData) => {
   const res = await API.post('/coupons', couponData);
+  return res.data?.data || res.data;
+};
+
+export const updateCoupon = async (id, couponData) => {
+  const res = await API.put(`/coupons/${id}`, couponData);
+  return res.data?.data || res.data;
+};
+
+export const toggleCouponActive = async (id) => {
+  const res = await API.patch(`/coupons/${id}/toggle`);
   return res.data?.data || res.data;
 };
 
@@ -147,9 +172,12 @@ export const getHomepageCMS = async () => {
 };
 
 // ==================== CLOUDINARY UPLOAD ====================
-export const uploadImageToCloudinary = async (file) => {
+export const uploadImageToCloudinary = async (file, folder = 'm20/products') => {
   const formData = new FormData();
   formData.append('image', file);
+  if (folder) {
+    formData.append('folder', folder);
+  }
   const res = await API.post('/cloudinary/upload', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
@@ -158,16 +186,25 @@ export const uploadImageToCloudinary = async (file) => {
   return res.data?.data || res.data;
 };
 
-export const uploadMultipleImagesToCloudinary = async (files) => {
+export const uploadMultipleImagesToCloudinary = async (files, folder = 'm20/products') => {
   const formData = new FormData();
   Array.from(files).forEach((file) => {
     formData.append('images', file);
   });
+  if (folder) {
+    formData.append('folder', folder);
+  }
   const res = await API.post('/cloudinary/upload-multiple', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
   });
+  return res.data?.data || res.data;
+};
+
+export const deleteImageFromCloudinary = async (publicId) => {
+  if (!publicId) return null;
+  const res = await API.delete('/cloudinary/delete', { data: { publicId } });
   return res.data?.data || res.data;
 };
 
@@ -274,6 +311,11 @@ export const bottlingBatch = async (id, data) => {
   return res.data?.data || res.data;
 };
 
+export const getFinishedLiquidInventory = async () => {
+  const res = await API.get('/inventory/finished-liquid');
+  return res.data?.data || [];
+};
+
 export const cancelBatch = async (id, reason) => {
   const res = await API.post(`/batches/${id}/cancel`, { reason });
   return res.data?.data || res.data;
@@ -287,6 +329,11 @@ export const getPurchases = async (params = {}) => {
 
 export const createPurchase = async (data) => {
   const res = await API.post('/purchases', data);
+  return res.data?.data || res.data;
+};
+
+export const updatePurchase = async (id, data) => {
+  const res = await API.put(`/purchases/${id}`, data);
   return res.data?.data || res.data;
 };
 
@@ -317,6 +364,21 @@ export const deleteExpense = async (id) => {
 };
 
 // ==================== FINANCE & TREASURY ====================
+export const getFinanceOverview = async (params = {}) => {
+  const res = await API.get('/finance/overview', { params });
+  return res.data?.data || {};
+};
+
+export const getCostSettings = async () => {
+  const res = await API.get('/finance/costs');
+  return res.data?.data || {};
+};
+
+export const updateCostSettings = async (data) => {
+  const res = await API.put('/finance/costs', data);
+  return res.data?.data || res.data;
+};
+
 export const getProfitAndLoss = async (params = {}) => {
   const res = await API.get('/finance/pl', { params });
   return res.data?.data || {};
@@ -352,5 +414,48 @@ export const getBatchHistoryReport = async (params = {}) => {
   return res.data?.data || [];
 };
 
+// ==================== SETTINGS & CMS ====================
+export const getAdminSettings = async () => {
+  const res = await API.get('/settings');
+  return res.data?.data || null;
+};
+
+export const updateSettings = async (settingsData) => {
+  const res = await API.put('/settings', settingsData);
+  return res.data?.data || res.data;
+};
+
+// ==================== OFFERS ====================
+export const getOffers = async (params = {}) => {
+  const res = await API.get('/offers', { params });
+  return res.data?.data || [];
+};
+
+export const getOfferById = async (id) => {
+  const res = await API.get(`/offers/${id}`);
+  return res.data?.data || null;
+};
+
+export const createOffer = async (data) => {
+  const res = await API.post('/offers', data);
+  return res.data?.data || res.data;
+};
+
+export const updateOffer = async (id, data) => {
+  const res = await API.patch(`/offers/${id}`, data);
+  return res.data?.data || res.data;
+};
+
+export const toggleOfferActive = async (id) => {
+  const res = await API.patch(`/offers/${id}/toggle-active`);
+  return res.data?.data || res.data;
+};
+
+export const deleteOffer = async (id) => {
+  const res = await API.delete(`/offers/${id}`);
+  return res.data?.data || res.data;
+};
+
 export default API;
+
 

@@ -1,35 +1,58 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { 
   Receipt, Plus, Trash2, Search, Filter, RefreshCw, 
-  X, Check, AlertCircle, ArrowUpRight, DollarSign, Wallet
+  X, Check, AlertCircle, ArrowUpRight, DollarSign, Wallet,
+  Upload, Eye, Image as ImageIcon, Calendar, Building2, Tag
 } from 'lucide-react';
 import { 
-  getPurchases, createPurchase, deletePurchase, 
-  getRawMaterials, getCashAccounts 
+  getPurchases, createPurchase, updatePurchase, deletePurchase, 
+  getRawMaterials, getCashAccounts, uploadImageToCloudinary 
 } from '../services/api';
-import { showSuccess, showError, showConfirm, showWarning, showToast } from '../utils/swal';
+import { useLanguage } from '../context/LanguageContext';
+import { showSuccess, showError, showConfirm, showToast } from '../utils/swal';
 
+const CATEGORIES = [
+  { value: 'fragrance_oil', labelEn: 'Fragrance Oil', labelAr: 'زيت عطري', unit: 'gram' },
+  { value: 'alcohol', labelEn: 'Alcohol 96%', labelAr: 'كحول 96%', unit: 'gram' },
+  { value: 'bottle', labelEn: 'Glass Bottle', labelAr: 'زجاجة عطر', unit: 'pcs' },
+  { value: 'sprayer', labelEn: 'Sprayer / Pump', labelAr: 'بامب / رشاش', unit: 'pcs' },
+  { value: 'cap', labelEn: 'Bottle Cap', labelAr: 'غطاء زجاجة', unit: 'pcs' },
+  { value: 'sticker', labelEn: 'Sticker / Label', labelAr: 'ستيكر / ليبل', unit: 'pcs' },
+  { value: 'box', labelEn: 'Packaging Box', labelAr: 'علبة كرتون', unit: 'pcs' },
+  { value: 'bag', labelEn: 'Brand Bag', labelAr: 'كيس براند', unit: 'pcs' },
+  { value: 'packaging', labelEn: 'Packaging Supplies', labelAr: 'مستلزمات تغليف', unit: 'pcs' },
+  { value: 'other', labelEn: 'Other Material', labelAr: 'مادة أخرى', unit: 'pcs' },
+];
 
 export default function PurchasesPage() {
+  const { lang, isRTL, t } = useLanguage();
   const [purchases, setPurchases] = useState([]);
   const [rawMaterials, setRawMaterials] = useState([]);
   const [cashAccounts, setCashAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
 
-  // Modals & Form
+  // Modals & Details
   const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [previewImage, setPreviewImage] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
+  // Form State
   const [formData, setFormData] = useState({
-    invoiceNumber: '',
     supplier: '',
+    invoiceNumber: '',
     purchaseDate: new Date().toISOString().split('T')[0],
+    paymentStatus: 'paid',
     paymentAccount: '',
+    attachmentUrl: '',
     shippingFee: 0,
-    taxFee: 0,
+    transportCost: 0,
     notes: '',
     items: [
-      { rawMaterial: '', quantity: '', unitCost: '', totalCost: '' }
+      { rawMaterial: '', rawMaterialName: '', category: 'fragrance_oil', quantity: '', unit: 'gram', unitCost: '', totalCost: '' }
     ],
   });
 
@@ -60,17 +83,45 @@ export default function PurchasesPage() {
   }, []);
 
   const handleOpenAdd = () => {
+    setEditingId(null);
     setFormData({
-      invoiceNumber: `INV-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`,
       supplier: '',
+      invoiceNumber: '',
       purchaseDate: new Date().toISOString().split('T')[0],
+      paymentStatus: 'paid',
       paymentAccount: cashAccounts[0]?._id || '',
+      attachmentUrl: '',
       shippingFee: 0,
-      taxFee: 0,
+      transportCost: 0,
       notes: '',
       items: [
-        { rawMaterial: '', quantity: '', unitCost: '', totalCost: '' }
+        { rawMaterial: '', rawMaterialName: '', category: 'fragrance_oil', quantity: '', unit: 'gram', unitCost: '', totalCost: '' }
       ],
+    });
+    setShowModal(true);
+  };
+
+  const handleOpenEdit = (p) => {
+    setEditingId(p._id);
+    setFormData({
+      supplier: p.supplier || '',
+      invoiceNumber: p.invoiceNumber || '',
+      purchaseDate: p.purchaseDate ? p.purchaseDate.split('T')[0] : new Date().toISOString().split('T')[0],
+      paymentStatus: p.paymentStatus || 'paid',
+      paymentAccount: p.paymentAccount?._id || p.paymentAccount || (cashAccounts[0]?._id || ''),
+      attachmentUrl: p.attachmentUrl || '',
+      shippingFee: 0,
+      transportCost: 0,
+      notes: p.notes || '',
+      items: (p.items || []).map(i => ({
+        rawMaterial: i.rawMaterial?._id || i.rawMaterial || '',
+        rawMaterialName: i.rawMaterialName || i.rawMaterial?.name || '',
+        category: i.rawMaterial?.category || 'fragrance_oil',
+        quantity: i.quantity || i.quantityGrams || 1,
+        unit: i.unit || 'gram',
+        unitCost: i.unitCost || (i.totalCost / (i.quantity || 1)) || 0,
+        totalCost: i.totalCost || 0
+      }))
     });
     setShowModal(true);
   };
@@ -78,7 +129,10 @@ export default function PurchasesPage() {
   const handleAddItemRow = () => {
     setFormData(prev => ({
       ...prev,
-      items: [...prev.items, { rawMaterial: '', quantity: '', unitCost: '', totalCost: '' }]
+      items: [
+        ...prev.items, 
+        { rawMaterial: '', rawMaterialName: '', category: 'fragrance_oil', quantity: '', unit: 'gram', unitCost: '', totalCost: '' }
+      ]
     }));
   };
 
@@ -95,15 +149,31 @@ export default function PurchasesPage() {
       const updated = [...prev.items];
       const item = { ...updated[index], [field]: value };
 
+      if (field === 'rawMaterial') {
+        if (value && value !== '__new__') {
+          const selectedMat = rawMaterials.find(m => m._id === value);
+          if (selectedMat) {
+            item.rawMaterialName = selectedMat.name;
+            item.category = selectedMat.category || 'fragrance_oil';
+            item.unit = selectedMat.unit || 'gram';
+            if (!item.unitCost && selectedMat.costPerGram) {
+              item.unitCost = selectedMat.costPerGram;
+            }
+          }
+        } else if (value === '__new__') {
+          item.rawMaterial = '';
+          item.rawMaterialName = '';
+        }
+      }
+
+      const qty = Number(field === 'quantity' ? value : item.quantity) || 0;
       if (field === 'quantity' || field === 'unitCost') {
-        const qty = Number(field === 'quantity' ? value : item.quantity) || 0;
         const uCost = Number(field === 'unitCost' ? value : item.unitCost) || 0;
-        item.totalCost = qty * uCost;
+        item.totalCost = qty > 0 && uCost > 0 ? Number((qty * uCost).toFixed(2)) : item.totalCost;
       } else if (field === 'totalCost') {
-        const qty = Number(item.quantity) || 0;
         const tCost = Number(value) || 0;
-        if (qty > 0) {
-          item.unitCost = (tCost / qty).toFixed(3);
+        if (qty > 0 && tCost > 0) {
+          item.unitCost = Number((tCost / qty).toFixed(4));
         }
       }
 
@@ -112,421 +182,734 @@ export default function PurchasesPage() {
     });
   };
 
-  const itemsSubtotal = formData.items.reduce((sum, item) => sum + (Number(item.totalCost) || 0), 0);
-  const invoiceGrandTotal = itemsSubtotal + (Number(formData.shippingFee) || 0) + (Number(formData.taxFee) || 0);
+  const calculateTotal = () => {
+    const itemsTotal = formData.items.reduce((acc, curr) => acc + (Number(curr.totalCost) || 0), 0);
+    const extra = (Number(formData.shippingFee) || 0) + (Number(formData.transportCost) || 0);
+    return itemsTotal + extra;
+  };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.supplier) {
-      showWarning('بيانات ناقصة', 'يرجى كتابة اسم المورد');
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showError(isRTL ? 'يرجى اختيار ملف صورة صالح' : 'Please select a valid image file');
       return;
     }
 
-    const validItems = formData.items.filter(i => i.rawMaterial && Number(i.quantity) > 0);
-    if (validItems.length === 0) {
-      showWarning('بيانات ناقصة', 'يرجى إضافة مادة خام واحدة على الأقل بكمية صالحة');
+    setUploadingImage(true);
+    try {
+      const res = await uploadImageToCloudinary(file, 'm20/invoices');
+      const url = res?.secure_url || res?.url;
+      if (url) {
+        setFormData(prev => ({ ...prev, attachmentUrl: url }));
+        showToast(isRTL ? 'تم رفع صورة الفاتورة بنجاح' : 'Invoice image uploaded successfully', 'success');
+      }
+    } catch (err) {
+      console.error('Invoice image upload failed:', err);
+      showError(isRTL ? 'فشل رفع الصورة إلى السحابة' : 'Failed to upload image to Cloudinary');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!formData.supplier.trim()) {
+      showError(isRTL ? 'يرجى إدخال اسم المورد' : 'Supplier name is required');
       return;
+    }
+
+    for (let i = 0; i < formData.items.length; i++) {
+      const itm = formData.items[i];
+      const name = itm.rawMaterialName || (rawMaterials.find(m => m._id === itm.rawMaterial)?.name);
+      if (!name || !name.trim()) {
+        showError(isRTL ? `يرجى تحديد أو كتابة اسم المادة في البند #${i + 1}` : `Please specify material name for item #${i + 1}`);
+        return;
+      }
+      if (!Number(itm.quantity) || Number(itm.quantity) <= 0) {
+        showError(isRTL ? `يرجى إدخال كمية صحيحة في البند #${i + 1}` : `Please enter a valid quantity for item #${i + 1}`);
+        return;
+      }
+      if (!Number(itm.totalCost) && !Number(itm.unitCost)) {
+        showError(isRTL ? `يرجى إدخال سعر الوحدة أو الإجمالي في البند #${i + 1}` : `Please enter unit price or total for item #${i + 1}`);
+        return;
+      }
     }
 
     setSubmitting(true);
     try {
-      await createPurchase({
-        invoiceNumber: formData.invoiceNumber,
-        supplier: formData.supplier,
+      const payload = {
+        supplier: formData.supplier.trim(),
+        invoiceNumber: formData.invoiceNumber.trim() || undefined,
         purchaseDate: formData.purchaseDate,
-        paymentAccount: formData.paymentAccount || undefined,
+        paymentStatus: formData.paymentStatus,
+        paymentAccountId: formData.paymentStatus === 'paid' ? formData.paymentAccount : null,
+        attachmentUrl: formData.attachmentUrl || null,
         shippingFee: Number(formData.shippingFee) || 0,
-        taxFee: Number(formData.taxFee) || 0,
-        notes: formData.notes,
-        items: validItems.map(i => ({
-          rawMaterial: i.rawMaterial,
-          quantity: Number(i.quantity),
-          unitCost: Number(i.unitCost) || (Number(i.totalCost) / Number(i.quantity)),
-          totalCost: Number(i.totalCost),
-        })),
-      });
+        transportCost: Number(formData.transportCost) || 0,
+        notes: formData.notes.trim(),
+        items: formData.items.map(itm => ({
+          rawMaterial: itm.rawMaterial || undefined,
+          rawMaterialName: itm.rawMaterialName?.trim(),
+          category: itm.category || 'fragrance_oil',
+          quantity: Number(itm.quantity),
+          unit: itm.unit || 'gram',
+          unitCost: Number(itm.unitCost) || (Number(itm.totalCost) / Number(itm.quantity)),
+          totalCost: Number(itm.totalCost) || (Number(itm.quantity) * Number(itm.unitCost))
+        }))
+      };
 
-      showSuccess('تم تسجيل الفاتورة بنجاح', 'تم تحديث المخزون وحساب متوسط التكلفة الجديد تلقائياً');
+      if (editingId) {
+        await updatePurchase(editingId, payload);
+        showSuccess(isRTL ? 'تم تحديث فاتورة المشتريات والمخزون بنجاح' : 'Purchase invoice and inventory updated successfully');
+      } else {
+        await createPurchase(payload);
+        showSuccess(isRTL ? 'تم تسجيل الفاتورة وزيادة المخزون تلقائياً' : 'Invoice saved & inventory updated automatically');
+      }
+
       setShowModal(false);
       fetchData();
     } catch (err) {
-      showError('خطأ أثناء الحفظ', err.response?.data?.message || 'حدث خطأ أثناء حفظ فاتورة المشتريات');
+      console.error('Save purchase error:', err);
+      showError(err.response?.data?.message || err.message || (isRTL ? 'فشل حفظ الفاتورة' : 'Failed to save purchase invoice'));
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDelete = async (purchase) => {
-    const confirmed = await showConfirm('تأكيد الحذف', `هل أنت متأكد من حذف فاتورة "${purchase.invoiceNumber}"؟ (لن يتم التراجع عن تحديثات المخزون السابقة)`, 'نعم، احذف', 'إلغاء');
-    if (!confirmed) return;
+  const handleDelete = async (id, pNum) => {
+    const confirm = await showConfirm(
+      isRTL ? `حذف الفاتورة ${pNum}؟` : `Delete Invoice ${pNum}?`,
+      isRTL ? 'سيتم التراجع عن كميات المخزون المضافة وتعديل الرصيد تلقائياً.' : 'This will revert added stock and adjust account balances automatically.'
+    );
+    if (!confirm) return;
+
     try {
-      await deletePurchase(purchase._id);
-      showToast('تم حذف الفاتورة بنجاح');
+      await deletePurchase(id);
+      showSuccess(isRTL ? 'تم حذف الفاتورة وتحديث المخزون' : 'Purchase deleted & inventory reverted');
       fetchData();
     } catch (err) {
-      showError('تعذر الحذف', err.response?.data?.message || 'تعذر حذف الفاتورة');
+      console.error('Delete purchase error:', err);
+      showError(isRTL ? 'فشل حذف الفاتورة' : 'Failed to delete purchase');
     }
   };
 
-  const totalPurchasesAmount = purchases.reduce((sum, p) => sum + (p.totalAmount || 0), 0);
+  // Filtered purchases
+  const filteredPurchases = purchases.filter(p => {
+    const matchesSearch = !searchQuery.trim() || 
+      (p.supplier && p.supplier.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (p.invoiceNumber && p.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (p.purchaseNumber && p.purchaseNumber.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    const matchesStatus = statusFilter === 'all' || p.paymentStatus === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const totalSpent = purchases.reduce((sum, p) => sum + (p.totalAmount || 0), 0);
+  const unpaidTotal = purchases.filter(p => p.paymentStatus === 'unpaid').reduce((sum, p) => sum + (p.totalAmount || 0), 0);
 
   return (
-    <div className="space-y-6 text-right font-['Tajawal',sans-serif]">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-200">
+    <div className="space-y-6">
+      
+      {/* Top Header & Metrics */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <h1 className="text-xl font-bold text-[#03204E] flex items-center gap-2">
-            <Receipt size={20} strokeWidth={1.5} className="text-[#03204E]" />
-            <span>فواتير مشتريات المواد الخام (Procurement & Invoices)</span>
+          <h1 className="text-xl sm:text-2xl font-bold text-[#174F43] tracking-tight flex items-center gap-2">
+            <Receipt className="text-[#174F43]" size={26} />
+            <span>{isRTL ? 'فواتير المشتريات والتوريدات' : 'Purchase Invoices'}</span>
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            تسجيل توريدات الزيوت ومواد التغليف، حساب متوسط التكلفة المرجح (WAC)، والخصم التلقائي من الخزائن.
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            {isRTL 
+              ? 'تسجيل فواتير الشراء اليومية وإضافة المواد الخام وحساب التكلفة تلقائياً' 
+              : 'Record supplier invoices with automated raw materials intake and unit cost calculations'}
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <button
-            onClick={handleOpenAdd}
-            className="px-3.5 py-2 rounded-sm bg-[#03204E] hover:bg-[#02183b] text-white text-xs font-medium flex items-center gap-1.5 transition-colors duration-150 h-9"
-          >
-            <Plus size={14} />
-            <span>تسجيل فاتورة شراء جديدة</span>
-          </button>
+        <button
+          onClick={handleOpenAdd}
+          className="inline-flex items-center justify-center gap-2 bg-[#174F43] hover:bg-[#0c312b] text-white px-4 py-2.5 rounded-sm text-xs font-semibold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+        >
+          <Plus size={16} />
+          <span>{isRTL ? 'تسجيل فاتورة شراء جديدة' : 'New Purchase Invoice'}</span>
+        </button>
+      </div>
 
-          <button
-            onClick={fetchData}
-            className="p-2 rounded-sm border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors"
-            title="تحديث"
-          >
-            <RefreshCw size={14} strokeWidth={1.5} className={loading ? 'animate-spin' : ''} />
-          </button>
+      {/* Metrics Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white border border-slate-200 p-4 rounded-sm shadow-2xs">
+          <span className="text-slate-500 text-xs font-medium block mb-1">
+            {isRTL ? 'إجمالي الفواتير المسجلة' : 'Total Invoices'}
+          </span>
+          <span className="text-2xl font-bold text-slate-900 font-mono">
+            {purchases.length}
+          </span>
+        </div>
+
+        <div className="bg-white border border-slate-200 p-4 rounded-sm shadow-2xs">
+          <span className="text-slate-500 text-xs font-medium block mb-1">
+            {isRTL ? 'إجمالي المشتريات الكلي' : 'Total Purchases Value'}
+          </span>
+          <span className="text-2xl font-bold text-[#174F43] font-mono">
+            {totalSpent.toLocaleString()} <span className="text-xs font-sans text-slate-500">{isRTL ? 'ج.م' : 'EGP'}</span>
+          </span>
+        </div>
+
+        <div className="bg-white border border-slate-200 p-4 rounded-sm shadow-2xs">
+          <span className="text-slate-500 text-xs font-medium block mb-1">
+            {isRTL ? 'مستحقات الموردين غير المسددة' : 'Outstanding Supplier Payments'}
+          </span>
+          <span className={`text-2xl font-bold font-mono ${unpaidTotal > 0 ? 'text-amber-600' : 'text-slate-700'}`}>
+            {unpaidTotal.toLocaleString()} <span className="text-xs font-sans text-slate-500">{isRTL ? 'ج.م' : 'EGP'}</span>
+          </span>
         </div>
       </div>
 
-      {/* KPI Card */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-white rounded-sm p-4 border border-slate-200">
-          <span className="text-xs text-slate-500 block">إجمالي عدد الفواتير</span>
-          <h3 className="text-xl font-bold text-slate-900 mt-1">{purchases.length} فاتورة</h3>
+      {/* Search & Filters */}
+      <div className="bg-white border border-slate-200 p-3 rounded-sm shadow-2xs flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <div className="relative w-full sm:w-80">
+          <Search size={15} className={`absolute top-1/2 -translate-y-1/2 text-slate-400 ${isRTL ? 'right-3' : 'left-3'}`} />
+          <input
+            type="text"
+            placeholder={isRTL ? 'بحث برقم الفاتورة أو اسم المورد...' : 'Search by supplier, invoice #...'}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className={`w-full py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-sm focus:outline-none focus:border-[#174F43] ${
+              isRTL ? 'pr-9 pl-3' : 'pl-9 pr-3'
+            }`}
+          />
         </div>
 
-        <div className="bg-white rounded-sm p-4 border border-slate-200">
-          <span className="text-xs text-slate-500 block">إجمالي مصروف المشتريات والتوريد</span>
-          <h3 className="text-xl font-bold text-[#03204E] mt-1">{Math.round(totalPurchasesAmount).toLocaleString()} ج.م</h3>
-        </div>
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <div className="flex items-center bg-slate-100 rounded p-0.5 border border-slate-200 text-xs">
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+                statusFilter === 'all' ? 'bg-[#174F43] text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {isRTL ? 'الكل' : 'All'}
+            </button>
+            <button
+              onClick={() => setStatusFilter('paid')}
+              className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+                statusFilter === 'paid' ? 'bg-emerald-700 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {isRTL ? 'مسددة' : 'Paid'}
+            </button>
+            <button
+              onClick={() => setStatusFilter('unpaid')}
+              className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+                statusFilter === 'unpaid' ? 'bg-amber-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {isRTL ? 'غير مسددة' : 'Unpaid'}
+            </button>
+          </div>
 
-        <div className="bg-white rounded-sm p-4 border border-slate-200">
-          <span className="text-xs text-slate-500 block">طريقة تقييم التكلفة</span>
-          <h3 className="text-sm font-bold text-emerald-700 mt-1">متوسط مرجح تراكمي (WAC)</h3>
+          <button
+            onClick={fetchData}
+            title={isRTL ? 'تحديث' : 'Refresh'}
+            className="p-1.5 border border-slate-200 hover:bg-slate-50 rounded text-slate-600 cursor-pointer"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
         </div>
       </div>
 
       {/* Purchases Table */}
-      <div className="bg-white rounded-sm border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
-            <thead className="bg-[#F8FAFC] text-slate-700 font-semibold border-b border-slate-200">
-              <tr>
-                <th className="py-3 px-4">رقم الفاتورة</th>
-                <th className="py-3 px-4">المورد</th>
-                <th className="py-3 px-4">تاريخ الشراء</th>
-                <th className="py-3 px-4">البنود المشتراة</th>
-                <th className="py-3 px-4 text-center">الإجمالي (ج.م)</th>
-                <th className="py-3 px-4">حساب الدفع</th>
-                <th className="py-3 px-4 text-center">الإجراءات</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-normal text-slate-700">
-              {loading ? (
-                <tr>
-                  <td colSpan="7" className="py-8 text-center text-slate-400">
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-[#03204E] border-t-transparent rounded-full animate-spin"></div>
-                      <span>جاري تحميل الفواتير...</span>
-                    </div>
-                  </td>
+      <div className="bg-white border border-slate-200 rounded-sm shadow-2xs overflow-hidden">
+        {loading ? (
+          <div className="p-12 text-center text-slate-500 text-xs">
+            <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-[#174F43]" />
+            <span>{isRTL ? 'جاري تحميل فواتير الشراء...' : 'Loading invoices...'}</span>
+          </div>
+        ) : filteredPurchases.length === 0 ? (
+          <div className="p-12 text-center text-slate-500 text-xs">
+            <Receipt size={32} className="mx-auto mb-2 text-slate-300" />
+            <p className="font-semibold text-slate-700 mb-1">
+              {isRTL ? 'لا توجد فواتير مسجلة' : 'No purchase invoices found'}
+            </p>
+            <p className="text-[11px] text-slate-400">
+              {isRTL ? 'ابدأ بتسجيل أول فاتورة شراء لإضافة المواد الخام تلقائياً' : 'Start by recording your first invoice to automatically populate raw materials'}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-semibold text-[10px]">
+                  <th className="py-3 px-4">{isRTL ? 'رقم الفاتورة' : 'Invoice Ref'}</th>
+                  <th className="py-3 px-4">{isRTL ? 'التاريخ' : 'Date'}</th>
+                  <th className="py-3 px-4">{isRTL ? 'المورد' : 'Supplier'}</th>
+                  <th className="py-3 px-4">{isRTL ? 'البنود المشتراة' : 'Purchased Items'}</th>
+                  <th className="py-3 px-4">{isRTL ? 'الإجمالي' : 'Total Amount'}</th>
+                  <th className="py-3 px-4">{isRTL ? 'حالة السداد' : 'Payment'}</th>
+                  <th className="py-3 px-4 text-center">{isRTL ? 'صورة الفاتورة' : 'Attachment'}</th>
+                  <th className="py-3 px-4 text-center">{isRTL ? 'الإجراءات' : 'Actions'}</th>
                 </tr>
-              ) : purchases.length === 0 ? (
-                <tr>
-                  <td colSpan="7" className="py-8 text-center text-slate-400">
-                    لا توجد فواتير مشتريات مسجلة بعد.
-                  </td>
-                </tr>
-              ) : (
-                purchases.map((purchase) => {
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredPurchases.map((p) => {
+                  const isPaid = p.paymentStatus === 'paid';
                   return (
-                    <tr key={purchase._id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-slate-900">
-                        {purchase.invoiceNumber}
+                    <tr key={p._id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="py-3 px-4 font-mono font-medium text-slate-900">
+                        {p.purchaseNumber}
+                        {p.invoiceNumber && (
+                          <span className="block text-[10px] text-slate-400 font-sans">
+                            {isRTL ? 'رقم المورد: ' : 'Supp: '} {p.invoiceNumber}
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="py-3 px-4 text-slate-600 font-mono text-[11px]">
+                        {p.purchaseDate ? new Date(p.purchaseDate).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US') : '-'}
                       </td>
 
                       <td className="py-3 px-4 font-medium text-slate-800">
-                        {purchase.supplier}
+                        {p.supplier || (isRTL ? 'مورد غير محدد' : 'General Supplier')}
                       </td>
 
-                      <td className="py-3 px-4 text-slate-600 font-mono">
-                        {new Date(purchase.purchaseDate).toLocaleDateString('ar-EG')}
-                      </td>
-
-                      <td className="py-3 px-4">
-                        <div className="space-y-0.5">
-                          {(purchase.items || []).map((item, idx) => (
-                            <div key={idx} className="text-[11px] text-slate-700">
-                              • {item.rawMaterial?.name || 'مادة خام'}: <span className="font-mono font-semibold">{item.quantity} {item.rawMaterial?.unit || 'g'}</span> ({item.unitCost?.toFixed(2)} ج.م/{item.rawMaterial?.unit || 'g'})
-                            </div>
+                      <td className="py-3 px-4 max-w-xs">
+                        <div className="flex flex-wrap gap-1">
+                          {(p.items || []).map((itm, idx) => (
+                            <span 
+                              key={idx}
+                              className="inline-flex items-center text-[10px] bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-700"
+                            >
+                              {itm.rawMaterialName || itm.rawMaterial?.name} ({itm.quantity || itm.quantityGrams} {itm.unit || 'g'})
+                            </span>
                           ))}
                         </div>
                       </td>
 
-                      <td className="py-3 px-4 text-center font-mono font-bold text-[#03204E]">
-                        {Math.round(purchase.totalAmount || 0).toLocaleString()} ج.م
+                      <td className="py-3 px-4 font-bold font-mono text-slate-900">
+                        {(p.totalAmount || 0).toLocaleString()} <span className="text-[10px] font-sans font-normal text-slate-500">{isRTL ? 'ج.م' : 'EGP'}</span>
                       </td>
 
-                      <td className="py-3 px-4 text-slate-600 text-[11px]">
-                        {purchase.paymentAccount?.accountName || 'غير محدد / أجل'}
+                      <td className="py-3 px-4">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
+                          isPaid ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}>
+                          {isPaid ? (isRTL ? 'مسددة' : 'PAID') : (isRTL ? 'غير مسددة' : 'UNPAID')}
+                        </span>
+                        {isPaid && p.paymentAccountName && (
+                          <span className="block text-[10px] text-slate-400 mt-0.5">
+                            {p.paymentAccountName}
+                          </span>
+                        )}
                       </td>
 
                       <td className="py-3 px-4 text-center">
-                        <button
-                          onClick={() => handleDelete(purchase)}
-                          title="حذف الفاتورة"
-                          className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                        {p.attachmentUrl ? (
+                          <button
+                            onClick={() => setPreviewImage(p.attachmentUrl)}
+                            className="inline-flex items-center gap-1 text-[11px] text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+                          >
+                            <ImageIcon size={13} />
+                            <span>{isRTL ? 'عرض' : 'View'}</span>
+                          </button>
+                        ) : (
+                          <span className="text-slate-300 text-[10px]">-</span>
+                        )}
+                      </td>
+
+                      <td className="py-3 px-4 text-center">
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleOpenEdit(p)}
+                            className="text-slate-500 hover:text-[#174F43] p-1 rounded hover:bg-slate-100 cursor-pointer"
+                            title={isRTL ? 'تعديل الفاتورة' : 'Edit Invoice'}
+                          >
+                            <Receipt size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(p._id, p.purchaseNumber)}
+                            className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-red-50 cursor-pointer"
+                            title={isRTL ? 'حذف الفاتورة' : 'Delete Invoice'}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* Add Purchase Modal */}
+      {/* Invoice Entry / Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 rtl">
-          <div className="fixed inset-0 bg-black/40" onClick={() => setShowModal(false)} />
-          <div className="relative w-full max-w-2xl bg-white rounded-sm border border-slate-200 overlay-shadow z-10 max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-slate-200 bg-[#F8FAFC] flex items-center justify-between shrink-0">
-              <h2 className="text-sm font-semibold text-[#03204E] flex items-center gap-1.5">
-                <Receipt size={16} />
-                <span>تسجيل فاتورة شراء وتوريد مواد خام</span>
-              </h2>
-              <button onClick={() => setShowModal(false)} className="p-1 text-slate-400 hover:text-slate-700">
-                <X size={16} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-2xs overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-sm w-full max-w-3xl my-8 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Receipt className="text-[#174F43]" size={20} />
+                <h3 className="font-bold text-sm text-slate-900">
+                  {editingId 
+                    ? (isRTL ? 'تعديل فاتورة مشتريات' : 'Edit Purchase Invoice') 
+                    : (isRTL ? 'تسجيل فاتورة شراء وتوريد جديدة' : 'New Purchase Invoice Entry')}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer"
+              >
+                <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs overflow-y-auto flex-1">
-              <div className="grid grid-cols-2 gap-3">
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="p-5 space-y-5">
+              
+              {/* Row 1: Supplier, Invoice #, Date */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">اسم المورد / الشركة *</label>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    {isRTL ? 'اسم المورد *' : 'Supplier Name *'}
+                  </label>
                   <input
                     type="text"
                     required
+                    placeholder={isRTL ? 'مثال: شركة الزيوت الفرنسية' : 'e.g. French Fragrance Co.'}
                     value={formData.supplier}
-                    onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
-                    placeholder="مثال: شركة لوريس للزيوت العطرية"
-                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs outline-none focus:border-[#03204E]"
+                    onChange={(e) => setFormData(prev => ({ ...prev, supplier: e.target.value }))}
+                    className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-sm focus:border-[#174F43] focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">رقم الفاتورة *</label>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    {isRTL ? 'رقم الفاتورة (اختياري)' : 'Invoice Number (Optional)'}
+                  </label>
                   <input
                     type="text"
-                    required
+                    placeholder="INV-2026-001"
                     value={formData.invoiceNumber}
-                    onChange={(e) => setFormData({ ...formData, invoiceNumber: e.target.value })}
-                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none focus:border-[#03204E]"
+                    onChange={(e) => setFormData(prev => ({ ...prev, invoiceNumber: e.target.value }))}
+                    className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-sm focus:border-[#174F43] focus:outline-none font-mono"
                   />
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">تاريخ الشراء *</label>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    {isRTL ? 'تاريخ الفاتورة *' : 'Invoice Date *'}
+                  </label>
                   <input
                     type="date"
                     required
                     value={formData.purchaseDate}
-                    onChange={(e) => setFormData({ ...formData, purchaseDate: e.target.value })}
-                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs outline-none"
+                    onChange={(e) => setFormData(prev => ({ ...prev, purchaseDate: e.target.value }))}
+                    className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-sm focus:border-[#174F43] focus:outline-none"
                   />
-                </div>
-
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">الخزينة المسدد منها</label>
-                  <select
-                    value={formData.paymentAccount}
-                    onChange={(e) => setFormData({ ...formData, paymentAccount: e.target.value })}
-                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-2 text-xs outline-none"
-                  >
-                    <option value="">-- بدون سداد فوري / أجل --</option>
-                    {cashAccounts.map(acc => (
-                      <option key={acc._id} value={acc._id}>
-                        {acc.accountName} (رصيد: {acc.currentBalance?.toLocaleString()} ج.م)
-                      </option>
-                    ))}
-                  </select>
                 </div>
               </div>
 
-              {/* Purchase Items List */}
-              <div className="border border-slate-200 rounded-sm p-3 bg-[#F8FAFC] space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-slate-800 text-xs">أصناف الفاتورة:</span>
+              {/* Row 2: Payment Status & Account */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-sm">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    {isRTL ? 'حالة السداد *' : 'Payment Status *'}
+                  </label>
+                  <select
+                    value={formData.paymentStatus}
+                    onChange={(e) => setFormData(prev => ({ ...prev, paymentStatus: e.target.value }))}
+                    className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-sm focus:border-[#174F43] focus:outline-none bg-white font-medium"
+                  >
+                    <option value="paid">{isRTL ? 'مسددة بالكامل (خصم من الخزينة)' : 'Paid (Deduct from Cash Account)'}</option>
+                    <option value="unpaid">{isRTL ? 'آجلة / غير مسددة (مستحقات على المنشأة)' : 'Unpaid (Accounts Payable)'}</option>
+                  </select>
+                </div>
+
+                {formData.paymentStatus === 'paid' ? (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      {isRTL ? 'حساب السداد / الخزينة *' : 'Payment Account *'}
+                    </label>
+                    <select
+                      value={formData.paymentAccount}
+                      onChange={(e) => setFormData(prev => ({ ...prev, paymentAccount: e.target.value }))}
+                      className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-sm focus:border-[#174F43] focus:outline-none bg-white"
+                    >
+                      {cashAccounts.map(acc => (
+                        <option key={acc._id} value={acc._id}>
+                          {acc.name} (رصيد: {acc.balance?.toLocaleString()} ج.م)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="flex items-center text-xs text-amber-700 pt-5">
+                    <AlertCircle size={14} className="shrink-0 mr-1.5 ml-1.5" />
+                    <span>{isRTL ? 'لن يتم خصم رصيد، وستُقيد كمستحقات موردين' : 'No cash deducted; tracked in outstanding supplier debt.'}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Items Section */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <Tag size={13} className="text-[#174F43]" />
+                    <span>{isRTL ? 'البنود والأصناف المشتراة' : 'Purchased Items & Raw Materials'}</span>
+                  </h4>
                   <button
                     type="button"
                     onClick={handleAddItemRow}
-                    className="px-2 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-[#03204E] rounded-sm text-[11px] font-medium flex items-center gap-1 transition-colors"
+                    className="inline-flex items-center gap-1 text-[11px] text-[#174F43] hover:text-[#0c312b] font-bold cursor-pointer"
                   >
-                    <Plus size={12} />
-                    <span>إضافة مادة خام</span>
+                    <Plus size={13} />
+                    <span>{isRTL ? 'إضافة بند آخر' : '+ Add Item'}</span>
                   </button>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 border border-slate-200 rounded-sm p-2 bg-slate-50/40">
                   {formData.items.map((item, idx) => (
-                    <div key={idx} className="flex items-center gap-2 bg-white p-2.5 border border-slate-200 rounded-sm">
-                      <div className="flex-1">
-                        <label className="block text-[10px] text-slate-500 mb-0.5">المادة الخام:</label>
+                    <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-white p-2.5 border border-slate-200 rounded-sm shadow-2xs">
+                      
+                      {/* Material Select / Type */}
+                      <div className="col-span-12 sm:col-span-4">
+                        <label className="block text-[10px] text-slate-500 mb-0.5">
+                          {isRTL ? 'المادة الخام *' : 'Material *'}
+                        </label>
                         <select
-                          value={item.rawMaterial}
+                          value={item.rawMaterial || (item.rawMaterialName ? '__new__' : '')}
                           onChange={(e) => handleItemChange(idx, 'rawMaterial', e.target.value)}
-                          required
-                          className="w-full h-8 bg-slate-50 border border-slate-200 rounded-sm px-2 text-xs outline-none"
+                          className="w-full text-xs px-2 py-1 border border-slate-300 rounded-sm focus:border-[#174F43] focus:outline-none bg-white mb-1"
                         >
-                          <option value="">-- اختر المادة --</option>
+                          <option value="">{isRTL ? '-- اختر مادة مسجلة --' : '-- Select Existing Material --'}</option>
                           {rawMaterials.map(m => (
                             <option key={m._id} value={m._id}>
-                              {m.name} - حالي: {Number(m.currentStock ?? m.currentStockGrams ?? 0).toLocaleString()} {m.unit || 'g'}
+                              {m.name} ({m.category} - متوفر: {m.currentStock} {m.unit})
                             </option>
                           ))}
+                          <option value="__new__">{isRTL ? '➕ مادة جديدة غير مسجلة' : '➕ New Material (Type Name)'}</option>
                         </select>
+
+                        {(!item.rawMaterial || item.rawMaterial === '__new__') && (
+                          <div className="flex gap-1 mt-1">
+                            <input
+                              type="text"
+                              required
+                              placeholder={isRTL ? 'اسم المادة الجديدة...' : 'New material name...'}
+                              value={item.rawMaterialName}
+                              onChange={(e) => handleItemChange(idx, 'rawMaterialName', e.target.value)}
+                              className="w-full text-[11px] px-2 py-0.5 border border-amber-300 bg-amber-50/40 rounded-sm focus:outline-none"
+                            />
+                            <select
+                              value={item.category}
+                              onChange={(e) => handleItemChange(idx, 'category', e.target.value)}
+                              className="text-[10px] px-1 py-0.5 border border-slate-300 rounded-sm bg-white"
+                            >
+                              {CATEGORIES.map(c => (
+                                <option key={c.value} value={c.value}>{isRTL ? c.labelAr : c.labelEn}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="w-24">
-                        <label className="block text-[10px] text-slate-500 mb-0.5">الكمية:</label>
+                      {/* Quantity & Unit */}
+                      <div className="col-span-6 sm:col-span-3">
+                        <label className="block text-[10px] text-slate-500 mb-0.5">
+                          {isRTL ? 'الكمية والوحدة *' : 'Qty & Unit *'}
+                        </label>
+                        <div className="flex gap-1">
+                          <input
+                            type="number"
+                            step="any"
+                            min="0.001"
+                            required
+                            placeholder="100"
+                            value={item.quantity}
+                            onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
+                            className="w-full text-xs px-2 py-1 border border-slate-300 rounded-sm focus:border-[#174F43] focus:outline-none font-mono"
+                          />
+                          <select
+                            value={item.unit}
+                            onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
+                            className="text-[11px] px-1.5 py-1 border border-slate-300 rounded-sm bg-white shrink-0 font-medium"
+                          >
+                            <option value="gram">g (جرام)</option>
+                            <option value="ml">ml (مل)</option>
+                            <option value="pcs">pcs (قطعة)</option>
+                            <option value="kg">kg (كجم)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Unit Price */}
+                      <div className="col-span-6 sm:col-span-2">
+                        <label className="block text-[10px] text-slate-500 mb-0.5">
+                          {isRTL ? 'سعر الوحدة' : 'Unit Price'}
+                        </label>
                         <input
                           type="number"
                           step="any"
-                          min="0.1"
-                          required
-                          value={item.quantity}
-                          onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
-                          placeholder="1000"
-                          className="w-full h-8 bg-slate-50 border border-slate-200 rounded-sm px-2 text-xs font-mono outline-none text-center"
+                          min="0"
+                          placeholder="0.00"
+                          value={item.unitCost}
+                          onChange={(e) => handleItemChange(idx, 'unitCost', e.target.value)}
+                          className="w-full text-xs px-2 py-1 border border-slate-300 rounded-sm focus:border-[#174F43] focus:outline-none font-mono"
                         />
                       </div>
 
-                      <div className="w-28">
-                        <label className="block text-[10px] text-slate-500 mb-0.5">سعر الوحدة (ج.م):</label>
+                      {/* Total Cost */}
+                      <div className="col-span-10 sm:col-span-2">
+                        <label className="block text-[10px] text-slate-500 mb-0.5">
+                          {isRTL ? 'الإجمالي (ج.م) *' : 'Total (EGP) *'}
+                        </label>
                         <input
                           type="number"
                           step="any"
                           min="0.01"
                           required
-                          value={item.unitCost}
-                          onChange={(e) => handleItemChange(idx, 'unitCost', e.target.value)}
-                          placeholder="4.5"
-                          className="w-full h-8 bg-slate-50 border border-slate-200 rounded-sm px-2 text-xs font-mono outline-none text-center"
-                        />
-                      </div>
-
-                      <div className="w-28">
-                        <label className="block text-[10px] text-slate-500 mb-0.5">الإجمالي (ج.م):</label>
-                        <input
-                          type="number"
-                          step="any"
+                          placeholder="0.00"
                           value={item.totalCost}
                           onChange={(e) => handleItemChange(idx, 'totalCost', e.target.value)}
-                          placeholder="4500"
-                          className="w-full h-8 bg-white font-bold text-slate-900 border border-slate-200 rounded-sm px-2 text-xs font-mono outline-none text-center"
+                          className="w-full text-xs px-2 py-1 border border-slate-300 rounded-sm focus:border-[#174F43] focus:outline-none font-mono font-bold text-[#174F43]"
                         />
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveItemRow(idx)}
-                        disabled={formData.items.length <= 1}
-                        className="p-1.5 text-slate-400 hover:text-red-600 disabled:opacity-30 self-end mb-1"
-                      >
-                        <Trash2 size={13} />
-                      </button>
+                      {/* Remove Row */}
+                      <div className="col-span-2 sm:col-span-1 text-center pt-3">
+                        <button
+                          type="button"
+                          disabled={formData.items.length <= 1}
+                          onClick={() => handleRemoveItemRow(idx)}
+                          className="text-slate-400 hover:text-red-500 disabled:opacity-20 cursor-pointer p-1"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+
                     </div>
                   ))}
                 </div>
+              </div>
 
-                {/* Subtotal & Grand Total */}
-                <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
-                  <div className="text-slate-600">
-                    مجموع الأصناف: <strong className="font-mono text-slate-900">{itemsSubtotal.toLocaleString()} ج.م</strong>
-                  </div>
+              {/* Invoice Image Upload (Cloudinary) */}
+              <div className="p-3 border border-dashed border-slate-300 rounded-sm bg-slate-50/50">
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  {isRTL ? 'صورة الفاتورة الأصلية (مستند الشراء)' : 'Original Invoice Image (Document Attachment)'}
+                </label>
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-sm text-xs font-medium cursor-pointer shadow-2xs">
+                    <Upload size={14} className={uploadingImage ? 'animate-bounce text-[#174F43]' : 'text-slate-500'} />
+                    <span>{uploadingImage ? (isRTL ? 'جاري الرفع لسحابة Cloudinary...' : 'Uploading...') : (isRTL ? 'اختيار صورة الفاتورة' : 'Select Invoice Image')}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      disabled={uploadingImage}
+                      className="hidden"
+                    />
+                  </label>
 
-                  <div className="font-mono text-sm font-bold text-[#03204E]">
-                    إجمالي الفاتورة النهائي: {invoiceGrandTotal.toLocaleString()} ج.م
-                  </div>
+                  {formData.attachmentUrl ? (
+                    <div className="flex items-center gap-2">
+                      <a 
+                        href={formData.attachmentUrl} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 underline"
+                      >
+                        <Eye size={13} />
+                        <span>{isRTL ? 'معاينة الصورة المرفوعة' : 'Preview Uploaded Image'}</span>
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, attachmentUrl: '' }))}
+                        className="text-slate-400 hover:text-red-600 text-xs cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[11px] text-slate-400">
+                      {isRTL ? 'محفوظة بأمان دائم ولا تخضع للحذف التلقائي' : 'Protected permanently from auto-deletion'}
+                    </span>
+                  )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">مصاريف الشحن / النقل (ج.م)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={formData.shippingFee}
-                    onChange={(e) => setFormData({ ...formData, shippingFee: e.target.value })}
-                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none"
-                  />
+              {/* Total & Submit */}
+              <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xs text-slate-500 font-medium">
+                    {isRTL ? 'إجمالي قيمة الفاتورة:' : 'Invoice Grand Total:'}
+                  </span>
+                  <span className="text-2xl font-bold font-mono text-[#174F43]">
+                    {calculateTotal().toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-600">{isRTL ? 'ج.م' : 'EGP'}</span>
                 </div>
 
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">ضرائب أو رسوم إضافية (ج.م)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={formData.taxFee}
-                    onChange={(e) => setFormData({ ...formData, taxFee: e.target.value })}
-                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none"
-                  />
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    className="w-full sm:w-auto px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-sm text-xs font-medium cursor-pointer"
+                  >
+                    {isRTL ? 'إلغاء' : 'Cancel'}
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={submitting || uploadingImage}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 bg-[#174F43] hover:bg-[#0c312b] disabled:opacity-50 text-white px-5 py-2 rounded-sm text-xs font-bold uppercase tracking-wider shadow-sm cursor-pointer"
+                  >
+                    {submitting ? (
+                      <>
+                        <RefreshCw size={14} className="animate-spin" />
+                        <span>{isRTL ? 'جاري الحفظ وتحديث المخزون...' : 'Saving & Updating Stock...'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check size={14} />
+                        <span>{isRTL ? 'حفظ الفاتورة وتحديث المخزون' : 'Save Invoice & Update Stock'}</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
 
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">ملاحظات الفاتورة</label>
-                <textarea
-                  rows="2"
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="ملاحظات حول طريقة السداد، الشحن، الفحص..."
-                  className="w-full bg-white border border-slate-200 rounded-sm p-2 text-xs outline-none focus:border-[#03204E]"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border border-slate-200 rounded-sm hover:bg-slate-50 text-slate-700 h-9"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-5 py-2 bg-[#03204E] text-white rounded-sm hover:bg-[#02183b] h-9 font-medium disabled:opacity-50"
-                >
-                  {submitting ? 'جاري الحفظ وتحديث التكلفة...' : 'حفظ الفاتورة وإضافة المخزون'}
-                </button>
-              </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Invoice Image Full Preview Modal */}
+      {previewImage && (
+        <div 
+          onClick={() => setPreviewImage(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs cursor-pointer"
+        >
+          <div className="relative max-w-4xl max-h-[90vh] overflow-hidden bg-white p-2 rounded-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute top-3 right-3 bg-black/70 hover:bg-black text-white p-1 rounded-full cursor-pointer z-10"
+            >
+              <X size={18} />
+            </button>
+            <img 
+              src={previewImage} 
+              alt="Invoice Document" 
+              className="max-h-[85vh] w-auto object-contain mx-auto rounded"
+            />
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

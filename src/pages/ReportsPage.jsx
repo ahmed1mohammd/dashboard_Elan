@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { 
   FileSpreadsheet, Download, RefreshCw, Calendar, 
   TrendingUp, DollarSign, Package, Layers, PieChart as PieIcon,
@@ -74,12 +74,12 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="space-y-6 text-right font-['Tajawal',sans-serif]">
+    <div className="space-y-6 text-right font-['Cairo',sans-serif]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-200">
         <div>
-          <h1 className="text-xl font-bold text-[#03204E] flex items-center gap-2">
-            <FileSpreadsheet size={20} strokeWidth={1.5} className="text-[#03204E]" />
+          <h1 className="text-xl font-bold text-[#174F43] flex items-center gap-2">
+            <FileSpreadsheet size={20} strokeWidth={1.5} className="text-[#174F43]" />
             <span>التقارير التحليلية وبيان الأرباح (P&L & Analytics Reports)</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -89,7 +89,7 @@ export default function ReportsPage() {
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <button
-            onClick={() => handleExportCSV(fragranceReport, 'elan_sales_by_fragrance')}
+            onClick={() => handleExportCSV(fragranceReport, 'm20_sales_by_fragrance')}
             className="px-3.5 py-2 rounded-sm bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium flex items-center gap-1.5 transition-colors duration-150 h-9"
           >
             <Download size={14} />
@@ -134,7 +134,7 @@ export default function ReportsPage() {
 
           <button
             type="submit"
-            className="px-4 h-8 bg-[#03204E] text-white rounded-sm hover:bg-[#02183b] transition-colors"
+            className="px-4 h-8 bg-[#174F43] text-white rounded-sm hover:bg-[#0F3830] transition-colors"
           >
             تطبيق
           </button>
@@ -148,7 +148,7 @@ export default function ReportsPage() {
       {/* 1. Profit & Loss Statement (P&L) */}
       <div className="bg-white rounded-sm border border-slate-200 p-5 space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-          <h2 className="text-sm font-bold text-[#03204E] flex items-center gap-2">
+          <h2 className="text-sm font-bold text-[#174F43] flex items-center gap-2">
             <DollarSign size={16} />
             <span>قائمة الدخل والأرباح (Profit & Loss Statement)</span>
           </h2>
@@ -182,7 +182,7 @@ export default function ReportsPage() {
             <span className="text-[10px] text-slate-400 block mt-0.5">تسويق، رواتب، تشغيل</span>
           </div>
 
-          <div className="p-3.5 bg-[#03204E] text-white rounded-sm border border-[#03204E]">
+          <div className="p-3.5 bg-[#174F43] text-white rounded-sm border border-[#174F43]">
             <span className="text-white/70 text-xs block">صافي الربح الفعلي (Net Profit)</span>
             <h3 className="text-xl font-bold text-white font-mono mt-1">
               {Math.round(plData.netProfit || 0).toLocaleString()} ج.م
@@ -197,7 +197,7 @@ export default function ReportsPage() {
       {/* 2. Sales & Margin By Fragrance Report Table */}
       <div className="bg-white rounded-sm border border-slate-200 overflow-hidden">
         <div className="p-4 border-b border-slate-200 bg-[#F8FAFC] flex justify-between items-center">
-          <h2 className="text-sm font-bold text-[#03204E] flex items-center gap-1.5">
+          <h2 className="text-sm font-bold text-[#174F43] flex items-center gap-1.5">
             <Package size={16} />
             <span>مبيعات وهوامش ربح العطور (Sales & Profit by Fragrance)</span>
           </h2>
@@ -263,7 +263,7 @@ export default function ReportsPage() {
 
       {/* 3. Inventory Valuation Summary */}
       <div className="bg-white rounded-sm border border-slate-200 p-5 space-y-3">
-        <h2 className="text-sm font-bold text-[#03204E] pb-2 border-b border-slate-200">
+        <h2 className="text-sm font-bold text-[#174F43] pb-2 border-b border-slate-200">
           تقييم رأس المال المستثمر في المخزون (Inventory Capital Valuation)
         </h2>
 
@@ -282,7 +282,7 @@ export default function ReportsPage() {
             </span>
           </div>
 
-          <div className="p-3 bg-[#03204E] text-white border border-[#03204E] rounded-sm">
+          <div className="p-3 bg-[#174F43] text-white border border-[#174F43] rounded-sm">
             <span className="text-xs text-white/70 block">إجمالي رأس المال المحتجز بالمخزون:</span>
             <span className="text-lg font-bold font-mono text-white block mt-1">
               {Math.round(inventoryValuation.totalCombinedCostValue || 0).toLocaleString()} ج.م
@@ -293,3 +293,4 @@ export default function ReportsPage() {
     </div>
   );
 }
+

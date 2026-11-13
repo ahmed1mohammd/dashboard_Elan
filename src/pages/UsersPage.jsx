@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { getUsers, createUser, updateUser, deleteUser } from '../services/api';
 import { showSuccess, showError, showConfirm, showToast } from '../utils/swal';
 
@@ -177,12 +177,12 @@ export default function UsersPage() {
   };
 
   return (
-    <div className="space-y-6 text-right font-['Tajawal',sans-serif]">
+    <div className="space-y-6 text-right font-['Cairo',sans-serif]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-200">
         <div>
-          <h1 className="text-xl font-bold text-[#03204E] flex items-center gap-2">
-            <Users size={18} strokeWidth={1.5} className="text-[#03204E]" />
+          <h1 className="text-xl font-bold text-[#174F43] flex items-center gap-2">
+            <Users size={18} strokeWidth={1.5} className="text-[#174F43]" />
             <span>إدارة الحسابات والمستخدمين</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -193,7 +193,7 @@ export default function UsersPage() {
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <button
             onClick={handleOpenCreateModal}
-            className="px-3.5 py-2 rounded-sm bg-[#03204E] hover:bg-[#02183b] text-white transition-colors duration-150 text-xs font-medium flex items-center justify-center gap-2"
+            className="px-3.5 py-2 rounded-sm bg-[#174F43] hover:bg-[#0F3830] text-white transition-colors duration-150 text-xs font-medium flex items-center justify-center gap-2"
           >
             <UserPlus size={14} strokeWidth={1.5} />
             <span>إضافة حساب جديد</span>
@@ -216,7 +216,7 @@ export default function UsersPage() {
           onClick={() => setFilterType('all')}
           className={`p-3.5 rounded-sm border text-right transition-colors duration-150 ${
             filterType === 'all'
-              ? 'bg-[#03204E] text-white border-[#03204E]'
+              ? 'bg-[#174F43] text-white border-[#174F43]'
               : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
           }`}
         >
@@ -228,7 +228,7 @@ export default function UsersPage() {
           onClick={() => setFilterType('admins')}
           className={`p-3.5 rounded-sm border text-right transition-colors duration-150 ${
             filterType === 'admins'
-              ? 'bg-[#03204E] text-white border-[#03204E]'
+              ? 'bg-[#174F43] text-white border-[#174F43]'
               : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
           }`}
         >
@@ -240,7 +240,7 @@ export default function UsersPage() {
           onClick={() => setFilterType('customers')}
           className={`p-3.5 rounded-sm border text-right transition-colors duration-150 ${
             filterType === 'customers'
-              ? 'bg-[#03204E] text-white border-[#03204E]'
+              ? 'bg-[#174F43] text-white border-[#174F43]'
               : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
           }`}
         >
@@ -252,7 +252,7 @@ export default function UsersPage() {
           onClick={() => setFilterType('purchased')}
           className={`p-3.5 rounded-sm border text-right transition-colors duration-150 ${
             filterType === 'purchased'
-              ? 'bg-[#03204E] text-white border-[#03204E]'
+              ? 'bg-[#174F43] text-white border-[#174F43]'
               : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
           }`}
         >
@@ -269,7 +269,7 @@ export default function UsersPage() {
             placeholder="بحث بالاسم، الهاتف، أو البريد الإلكتروني..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-[#F8FAFC] border border-slate-200 focus:border-[#03204E] rounded-sm px-3.5 py-2 pr-9 text-xs outline-none transition-colors"
+            className="w-full bg-[#F8FAFC] border border-slate-200 focus:border-[#174F43] rounded-sm px-3.5 py-2 pr-9 text-xs outline-none transition-colors"
           />
           <Search size={14} className="text-slate-400 absolute right-3 top-2.5" />
         </div>
@@ -317,7 +317,7 @@ export default function UsersPage() {
 
                       <td className="py-3 px-4">
                         {u.role === 'superadmin' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm bg-[#03204E] text-white text-[11px] font-medium">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm bg-[#174F43] text-white text-[11px] font-medium">
                             <ShieldCheck size={12} />
                             <span>سوبر أدمن</span>
                           </span>
@@ -336,14 +336,16 @@ export default function UsersPage() {
 
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-1.5 font-mono">
-                          <span>{u.phone}</span>
-                          <button
-                            onClick={() => handleCopyPhone(u.phone, idx)}
-                            className="p-1 text-slate-400 hover:text-slate-700"
-                            title="نسخ الرقم"
-                          >
-                            {copiedIndex === idx ? <Check size={12} className="text-[#15803d]" /> : <Copy size={12} />}
-                          </button>
+                          <span>{u.phone || '-'}</span>
+                          {u.phone && (
+                            <button
+                              onClick={() => handleCopyPhone(u.phone, idx)}
+                              className="p-1 text-slate-400 hover:text-slate-700"
+                              title="نسخ الرقم"
+                            >
+                              {copiedIndex === idx ? <Check size={12} className="text-[#15803d]" /> : <Copy size={12} />}
+                            </button>
+                          )}
                         </div>
                       </td>
 
@@ -378,7 +380,7 @@ export default function UsersPage() {
                         <div className="flex items-center justify-end gap-1.5">
                           {cleanPhone && (
                             <a
-                              href={`https://wa.me/2${cleanPhone}?text=${encodeURIComponent(`مرحباً ${u.name || ''}، معك إدارة ÉLAN.`)}`}
+                              href={`https://wa.me/2${cleanPhone}?text=${encodeURIComponent(`مرحباً ${u.name || ''}، معك إدارة M20.`)}`}
                               target="_blank"
                               rel="noreferrer"
                               className="p-1.5 rounded-sm border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors duration-150"
@@ -420,7 +422,7 @@ export default function UsersPage() {
           <div className="bg-white rounded-sm border border-slate-200 shadow-lg w-full max-w-md overflow-hidden text-right">
             
             {/* Modal Header */}
-            <div className="bg-[#03204E] text-white p-4 flex items-center justify-between">
+            <div className="bg-[#174F43] text-white p-4 flex items-center justify-between">
               <h2 className="text-sm font-bold flex items-center gap-2">
                 <UserPlus size={16} />
                 <span>{modalMode === 'create' ? 'إنشاء حساب جديد بواسطة السوبر أدمن' : 'تعديل بيانات الحساب والصلاحية'}</span>
@@ -459,7 +461,7 @@ export default function UsersPage() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="مثال: أحمد محمد"
-                  className="w-full bg-[#F8FAFC] border border-slate-300 focus:border-[#03204E] rounded-sm p-2.5 outline-none transition-colors"
+                  className="w-full bg-[#F8FAFC] border border-slate-300 focus:border-[#174F43] rounded-sm p-2.5 outline-none transition-colors"
                 />
               </div>
 
@@ -474,7 +476,7 @@ export default function UsersPage() {
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="01xxxxxxxxx"
-                  className="w-full bg-[#F8FAFC] border border-slate-300 focus:border-[#03204E] rounded-sm p-2.5 outline-none transition-colors font-mono"
+                  className="w-full bg-[#F8FAFC] border border-slate-300 focus:border-[#174F43] rounded-sm p-2.5 outline-none transition-colors font-mono"
                 />
               </div>
 
@@ -487,8 +489,8 @@ export default function UsersPage() {
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="admin@elan.com"
-                  className="w-full bg-[#F8FAFC] border border-slate-300 focus:border-[#03204E] rounded-sm p-2.5 outline-none transition-colors font-mono"
+                  placeholder="admin@m20fragrance.com"
+                  className="w-full bg-[#F8FAFC] border border-slate-300 focus:border-[#174F43] rounded-sm p-2.5 outline-none transition-colors font-mono"
                 />
               </div>
 
@@ -504,7 +506,7 @@ export default function UsersPage() {
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   placeholder="••••••••"
-                  className="w-full bg-[#F8FAFC] border border-slate-300 focus:border-[#03204E] rounded-sm p-2.5 outline-none transition-colors font-mono"
+                  className="w-full bg-[#F8FAFC] border border-slate-300 focus:border-[#174F43] rounded-sm p-2.5 outline-none transition-colors font-mono"
                 />
               </div>
 
@@ -516,7 +518,7 @@ export default function UsersPage() {
                 <select
                   value={formData.role}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="w-full bg-[#F8FAFC] border border-slate-300 focus:border-[#03204E] rounded-sm p-2.5 outline-none transition-colors"
+                  className="w-full bg-[#F8FAFC] border border-slate-300 focus:border-[#174F43] rounded-sm p-2.5 outline-none transition-colors"
                 >
                   <option value="superadmin">سوبر أدمن (صلاحيات إدارية كاملة)</option>
                   <option value="admin">مسؤول / أدمن (إدارة المنتجات والطلبات)</option>
@@ -536,7 +538,7 @@ export default function UsersPage() {
                 <button
                   type="submit"
                   disabled={formSubmitting}
-                  className="px-5 py-2 bg-[#03204E] hover:bg-[#02183b] text-white rounded-sm transition-colors duration-150 font-medium flex items-center gap-1.5"
+                  className="px-5 py-2 bg-[#174F43] hover:bg-[#0F3830] text-white rounded-sm transition-colors duration-150 font-medium flex items-center gap-1.5"
                 >
                   {formSubmitting ? 'جاري الحفظ...' : modalMode === 'create' ? 'إنشاء الحساب' : 'حفظ التعديلات'}
                 </button>
@@ -550,3 +552,4 @@ export default function UsersPage() {
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
   Plus, 
@@ -18,7 +18,19 @@ import {
   CheckCircle2,
   Tag,
   ArrowUpDown,
-  ExternalLink
+  ExternalLink,
+  Clock,
+  Timer,
+  Wind,
+  Sun,
+  SunMedium,
+  Moon,
+  Briefcase,
+  Coffee,
+  PartyPopper,
+  Gem,
+  Heart,
+  Award
 } from 'lucide-react';
 import { 
   getProducts, 
@@ -31,6 +43,19 @@ import { showSuccess, showError, showConfirm, showToast } from '../utils/swal';
 
 const FIXED_SIZES = ['30ml', '50ml', '100ml'];
 
+export const OCCASIONS_LIST = [
+  { id: 'morning', labelAr: 'صباحي', labelEn: 'Morning', icon: Sun },
+  { id: 'daytime', labelAr: 'نهاري', labelEn: 'Daytime', icon: SunMedium },
+  { id: 'night', labelAr: 'مسائي / سهرات', labelEn: 'Night', icon: Moon },
+  { id: 'work/office', labelAr: 'العمل والمكتب', labelEn: 'Work & Office', icon: Briefcase },
+  { id: 'casual', labelAr: 'كاجوال ويومي', labelEn: 'Casual', icon: Coffee },
+  { id: 'parties', labelAr: 'حفلات واحتفالات', labelEn: 'Parties', icon: PartyPopper },
+  { id: 'special occasions', labelAr: 'مناسبات خاصة', labelEn: 'Special Occasions', icon: Gem },
+  { id: 'romantic dates', labelAr: 'لقاءات رومانسية', labelEn: 'Romantic Dates', icon: Heart },
+  { id: 'formal events', labelAr: 'مناسبات رسمية', labelEn: 'Formal Events', icon: Award },
+  { id: 'daily use', labelAr: 'استخدام يومي', labelEn: 'Daily Use', icon: Clock },
+];
+
 const initialProductState = {
   name: '',
   shortDescription: '',
@@ -41,6 +66,9 @@ const initialProductState = {
     heart: [],
     base: []
   },
+  longevityHours: '',
+  sillageHours: '',
+  occasions: [],
   variants: [
     { size: '30ml', price: 850, compareAtPrice: 1100, oldPrice: 1100 },
     { size: '50ml', price: 1450, compareAtPrice: 1800, oldPrice: 1800 },
@@ -147,6 +175,9 @@ export default function ProductsPage() {
       hoverImage: getRoleImg('hoverImage'),
       pyramidImage: getRoleImg('pyramidImage'),
       packagingImage: getRoleImg('packagingImage'),
+      longevityHours: product.longevityHours !== undefined && product.longevityHours !== null ? product.longevityHours : '',
+      sillageHours: product.sillageHours !== undefined && product.sillageHours !== null ? product.sillageHours : '',
+      occasions: Array.isArray(product.occasions) ? product.occasions : [],
       featured: !!product.featured,
       active: product.active !== undefined ? product.active : true
     });
@@ -163,9 +194,12 @@ export default function ProductsPage() {
 
     setUploadingRole(roleKey);
     try {
-      const res = await uploadImageToCloudinary(file);
-      const url = res.secure_url || res.url;
-      const publicId = res.public_id || res.publicId || '';
+      const res = await uploadImageToCloudinary(file, 'm20/products');
+      const url = res?.secure_url || res?.url;
+      const publicId = res?.public_id || res?.publicId || '';
+      if (!url) {
+        throw new Error('لم يتم استلام رابط الصورة من Cloudinary.');
+      }
       
       setFormData(prev => ({
         ...prev,
@@ -175,22 +209,16 @@ export default function ProductsPage() {
           alt: `${prev.name || 'عطر'} - ${roleKey}`
         }
       }));
-      showToast('تم رفع الصورة بنجاح');
+      showToast('تم رفع الصورة إلى Cloudinary بنجاح');
     } catch (err) {
       console.error('Image upload failed:', err);
-      // Fallback to local object URL for preview
-      const localUrl = URL.createObjectURL(file);
-      setFormData(prev => ({
-        ...prev,
-        [roleKey]: {
-          url: localUrl,
-          publicId: '',
-          alt: file.name
-        }
-      }));
-      showToast('تم اختيار الصورة');
+      showError(
+        'فشل رفع الصورة',
+        err.response?.data?.message || err.message || 'تعذر رفع الصورة إلى Cloudinary. يرجى المحاولة مرة أخرى.'
+      );
     } finally {
       setUploadingRole(null);
+      e.target.value = '';
     }
   };
 
@@ -229,6 +257,14 @@ export default function ProductsPage() {
     });
   };
 
+  const toggleOccasion = (occId) => {
+    setFormData(prev => {
+      const cur = prev.occasions || [];
+      const updated = cur.includes(occId) ? cur.filter(x => x !== occId) : [...cur, occId];
+      return { ...prev, occasions: updated };
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name.trim()) {
@@ -253,6 +289,9 @@ export default function ProductsPage() {
         heart: heartNotesStr.split(',').map(s => s.trim()).filter(Boolean),
         base: baseNotesStr.split(',').map(s => s.trim()).filter(Boolean)
       },
+      longevityHours: formData.longevityHours !== '' && formData.longevityHours !== null ? Number(formData.longevityHours) : null,
+      sillageHours: formData.sillageHours !== '' && formData.sillageHours !== null ? Number(formData.sillageHours) : null,
+      occasions: formData.occasions || [],
       variants: formData.variants.map(v => ({
         size: v.size,
         price: Number(v.price) || 0,
@@ -313,16 +352,16 @@ export default function ProductsPage() {
   });
 
   return (
-    <div className="space-y-6 text-right font-['Tajawal',sans-serif]">
+    <div className="space-y-6 text-right font-['Cairo',sans-serif]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200/80">
         <div>
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#03204E] to-[#083375] text-white flex items-center justify-center shadow-md shadow-[#03204E]/10">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#174F43] to-[#0F3830] text-white flex items-center justify-center shadow-md shadow-[#174F43]/10">
               <Package size={20} strokeWidth={1.5} />
             </div>
             <div>
-              <h1 className="text-xl font-extrabold text-[#03204E] tracking-tight">
+              <h1 className="text-xl font-extrabold text-[#174F43] tracking-tight">
                 كتالوج العطور والمنتجات التامة (Products)
               </h1>
               <p className="text-xs text-slate-500 font-medium">
@@ -335,7 +374,7 @@ export default function ProductsPage() {
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <button
             onClick={handleOpenNew}
-            className="px-4 py-2.5 rounded-xl bg-[#03204E] hover:bg-[#02183b] text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-sm hover:shadow active:scale-95"
+            className="px-4 py-2.5 rounded-xl bg-[#174F43] hover:bg-[#0F3830] text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-sm hover:shadow active:scale-95"
           >
             <Plus size={16} />
             <span>إضافة عطر جديد</span>
@@ -346,7 +385,7 @@ export default function ProductsPage() {
             className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors shadow-xs"
             title="تحديث"
           >
-            <RefreshCw size={14} strokeWidth={1.7} className={loading ? 'animate-spin text-[#03204E]' : ''} />
+            <RefreshCw size={14} strokeWidth={1.7} className={loading ? 'animate-spin text-[#174F43]' : ''} />
           </button>
         </div>
       </div>
@@ -360,7 +399,7 @@ export default function ProductsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="بحث بالاسم أو الوصف..."
-            className="w-full h-9 pr-9 pl-3 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-[#03204E]"
+            className="w-full h-9 pr-9 pl-3 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-[#174F43]"
           />
         </div>
 
@@ -369,7 +408,7 @@ export default function ProductsPage() {
           <button
             onClick={() => setFilterGender('ALL')}
             className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
-              filterGender === 'ALL' ? 'bg-white text-[#03204E] shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+              filterGender === 'ALL' ? 'bg-white text-[#174F43] shadow-2xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             الكل ({products.length})
@@ -377,7 +416,7 @@ export default function ProductsPage() {
           <button
             onClick={() => setFilterGender('MEN')}
             className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
-              filterGender === 'MEN' ? 'bg-[#03204E] text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+              filterGender === 'MEN' ? 'bg-[#174F43] text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             رجالي (MEN)
@@ -398,7 +437,7 @@ export default function ProductsPage() {
         {loading ? (
           <div className="col-span-full py-16 text-center text-slate-400 bg-white rounded-2xl border border-slate-200/80">
             <div className="flex items-center justify-center gap-3">
-              <div className="w-6 h-6 border-2 border-[#03204E] border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-6 h-6 border-2 border-[#174F43] border-t-transparent rounded-full animate-spin"></div>
               <span className="font-semibold text-xs">جاري تحميل كتالوج العطور...</span>
             </div>
           </div>
@@ -437,7 +476,7 @@ export default function ProductsPage() {
 
                     {/* Gender Badge */}
                     <span className={`absolute top-3 right-3 px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider ${
-                      isMen ? 'bg-[#03204E] text-white' : 'bg-rose-600 text-white'
+                      isMen ? 'bg-[#174F43] text-white' : 'bg-rose-600 text-white'
                     }`}>
                       {isMen ? 'MEN • رجالي' : 'WOMEN • نسائي'}
                     </span>
@@ -455,7 +494,7 @@ export default function ProductsPage() {
                   {/* Body Content */}
                   <div className="p-4 space-y-3">
                     <div>
-                      <h3 className="font-extrabold text-sm text-[#03204E] line-clamp-1">{product.name}</h3>
+                      <h3 className="font-extrabold text-sm text-[#174F43] line-clamp-1">{product.name}</h3>
                       <p className="text-xs text-slate-500 font-light mt-0.5 line-clamp-2 leading-relaxed">
                         {product.shortDescription || product.description || 'عطر فاخر مصنوع بتركيز استثنائي.'}
                       </p>
@@ -466,21 +505,50 @@ export default function ProductsPage() {
                       <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 space-y-1 text-[11px]">
                         {product.notes.top?.length > 0 && (
                           <div className="flex items-center gap-1 text-slate-600 truncate">
-                            <span className="font-bold text-[#03204E] shrink-0">القمة:</span>
+                            <span className="font-bold text-[#174F43] shrink-0">القمة:</span>
                             <span className="truncate">{product.notes.top.join(', ')}</span>
                           </div>
                         )}
                         {product.notes.heart?.length > 0 && (
                           <div className="flex items-center gap-1 text-slate-600 truncate">
-                            <span className="font-bold text-[#03204E] shrink-0">القلب:</span>
+                            <span className="font-bold text-[#174F43] shrink-0">القلب:</span>
                             <span className="truncate">{product.notes.heart.join(', ')}</span>
                           </div>
                         )}
                         {product.notes.base?.length > 0 && (
                           <div className="flex items-center gap-1 text-slate-600 truncate">
-                            <span className="font-bold text-[#03204E] shrink-0">القاعدة:</span>
+                            <span className="font-bold text-[#174F43] shrink-0">القاعدة:</span>
                             <span className="truncate">{product.notes.base.join(', ')}</span>
                           </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Performance & Occasions Preview */}
+                    {(product.longevityHours || product.sillageHours || product.occasions?.length > 0) && (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[10px]">
+                        {product.longevityHours && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200/80 font-bold">
+                            <Clock size={11} className="text-amber-700" />
+                            <span>ثبات {product.longevityHours} س</span>
+                          </span>
+                        )}
+                        {product.sillageHours && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 text-sky-800 border border-sky-200/80 font-bold">
+                            <Wind size={11} className="text-sky-700" />
+                            <span>فوحان {product.sillageHours} س</span>
+                          </span>
+                        )}
+                        {product.occasions?.slice(0, 2).map((occId) => {
+                          const found = OCCASIONS_LIST.find(o => o.id === occId);
+                          return found ? (
+                            <span key={occId} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium">
+                              {found.labelAr}
+                            </span>
+                          ) : null;
+                        })}
+                        {product.occasions?.length > 2 && (
+                          <span className="text-slate-400 font-mono font-bold">+{product.occasions.length - 2}</span>
                         )}
                       </div>
                     )}
@@ -494,7 +562,7 @@ export default function ProductsPage() {
 
                         return (
                           <div key={sz} className="p-2 bg-white rounded-xl border border-slate-200/90 text-center">
-                            <span className="font-extrabold text-[11px] text-[#03204E] block">{sz}</span>
+                            <span className="font-extrabold text-[11px] text-[#174F43] block">{sz}</span>
                             {oldPrice && oldPrice > price && (
                               <span className="text-[10px] text-slate-400 line-through block -mt-0.5">
                                 {oldPrice} ج.م
@@ -521,7 +589,7 @@ export default function ProductsPage() {
                       onClick={() => handleOpenEdit(product)}
                       className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center gap-1 transition-colors shadow-2xs"
                     >
-                      <Edit3 size={13} className="text-[#03204E]" />
+                      <Edit3 size={13} className="text-[#174F43]" />
                       <span>تعديل العطر</span>
                     </button>
 
@@ -547,11 +615,11 @@ export default function ProductsPage() {
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-200/80 bg-[#F8FAFC] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[#03204E]/10 text-[#03204E] flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-[#174F43]/10 text-[#174F43] flex items-center justify-center">
                   <Package size={18} />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-[#03204E]">
+                  <h2 className="text-sm font-bold text-[#174F43]">
                     {editingId ? `تعديل العطر: ${formData.name}` : 'إضافة عطر فاخر جديد'}
                   </h2>
                   <p className="text-[11px] text-slate-400">إدارة تفاصيل العطر، النوتات، الأحجام الثابتة، والصور الـ 4</p>
@@ -576,8 +644,8 @@ export default function ProductsPage() {
                       required
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="مثال: ÉLAN Signature Noir"
-                      className="w-full h-10 bg-white border border-slate-200 rounded-xl px-3.5 text-xs font-bold outline-none focus:border-[#03204E]"
+                      placeholder="مثال: M20 Signature Noir"
+                      className="w-full h-10 bg-white border border-slate-200 rounded-xl px-3.5 text-xs font-bold outline-none focus:border-[#174F43]"
                     />
                   </div>
 
@@ -589,7 +657,7 @@ export default function ProductsPage() {
                         type="button"
                         onClick={() => setFormData({ ...formData, gender: 'MEN' })}
                         className={`h-full text-xs font-bold rounded-lg transition-all flex items-center justify-center ${
-                          formData.gender === 'MEN' ? 'bg-[#03204E] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                          formData.gender === 'MEN' ? 'bg-[#174F43] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                         }`}
                       >
                         MEN (رجالي)
@@ -615,14 +683,14 @@ export default function ProductsPage() {
                     value={formData.shortDescription}
                     onChange={(e) => setFormData({ ...formData, shortDescription: e.target.value })}
                     placeholder="وصف تسويقي جذاب يظهر على كروت المنتجات وتفاصيل العطر..."
-                    className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs outline-none focus:border-[#03204E]"
+                    className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs outline-none focus:border-[#174F43]"
                   />
                 </div>
               </div>
 
               {/* Section 2: Fragrance Notes */}
               <div className="p-4 bg-[#F8FAFC] border border-slate-200 rounded-2xl space-y-3">
-                <span className="font-extrabold text-[#03204E] text-xs flex items-center gap-1.5">
+                <span className="font-extrabold text-[#174F43] text-xs flex items-center gap-1.5">
                   <Sparkles size={15} />
                   <span>الهرم العطري والنوتات (Fragrance Notes)</span>
                 </span>
@@ -636,7 +704,7 @@ export default function ProductsPage() {
                       value={topNotesStr}
                       onChange={(e) => setTopNotesStr(e.target.value)}
                       placeholder="البرغموت, الفلفل الوردي"
-                      className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#03204E]"
+                      className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#174F43]"
                     />
                   </div>
 
@@ -647,7 +715,7 @@ export default function ProductsPage() {
                       value={heartNotesStr}
                       onChange={(e) => setHeartNotesStr(e.target.value)}
                       placeholder="الياسمين, الورد الجوري"
-                      className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#03204E]"
+                      className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#174F43]"
                     />
                   </div>
 
@@ -658,8 +726,88 @@ export default function ProductsPage() {
                       value={baseNotesStr}
                       onChange={(e) => setBaseNotesStr(e.target.value)}
                       placeholder="العود, العنبر, المسك"
-                      className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#03204E]"
+                      className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#174F43]"
                     />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2.5: Perfume Performance & Occasions (الثبات، الفوحان، وقائمة المناسبات) */}
+              <div className="p-4 bg-white border border-slate-200/90 rounded-2xl space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                  <span className="font-extrabold text-[#174F43] text-xs flex items-center gap-1.5">
+                    <Timer size={15} />
+                    <span>أداء العطر والمناسبات الموصى بها (Performance & Occasions)</span>
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-medium">حقول اختيارية لتعزيز تجربة العميل</span>
+                </div>
+
+                {/* Longevity & Sillage Hours */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700">
+                      <Clock size={13} className="text-[#174F43]" />
+                      <span>مدة الثبات بالساعات (Longevity)</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={formData.longevityHours}
+                        onChange={(e) => setFormData({ ...formData, longevityHours: e.target.value })}
+                        placeholder="مثال: 8 أو 12"
+                        className="w-full h-9 bg-white border border-slate-200 rounded-lg px-3 text-xs font-mono font-bold outline-none focus:border-[#174F43]"
+                      />
+                      <span className="text-xs font-bold text-slate-500 shrink-0">ساعات</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700">
+                      <Wind size={13} className="text-[#174F43]" />
+                      <span>مدة الفوحان بالساعات (Sillage)</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={formData.sillageHours}
+                        onChange={(e) => setFormData({ ...formData, sillageHours: e.target.value })}
+                        placeholder="مثال: 4 أو 6"
+                        className="w-full h-9 bg-white border border-slate-200 rounded-lg px-3 text-xs font-mono font-bold outline-none focus:border-[#174F43]"
+                      />
+                      <span className="text-xs font-bold text-slate-500 shrink-0">ساعات</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Occasions Multi-Select */}
+                <div className="space-y-2 pt-1">
+                  <label className="block text-[11px] font-bold text-slate-700">
+                    قائمة المناسبات المناسبة (اختر مناسبة أو أكثر):
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    {OCCASIONS_LIST.map((occ) => {
+                      const IconComp = occ.icon;
+                      const isSelected = (formData.occasions || []).includes(occ.id);
+                      return (
+                        <button
+                          key={occ.id}
+                          type="button"
+                          onClick={() => toggleOccasion(occ.id)}
+                          className={`p-2.5 rounded-xl border text-xs font-semibold flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#174F43] text-white border-[#174F43] shadow-sm scale-[1.02]'
+                              : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-100'
+                          }`}
+                        >
+                          <IconComp size={16} strokeWidth={isSelected ? 2 : 1.5} />
+                          <span className="text-[11px]">{occ.labelAr}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -667,7 +815,7 @@ export default function ProductsPage() {
               {/* Section 3: Sizes & Pricing (Fixed 30ml, 50ml, 100ml) */}
               <div className="p-4 bg-white border border-slate-200/90 rounded-2xl space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                  <span className="font-extrabold text-[#03204E] text-xs flex items-center gap-1.5">
+                  <span className="font-extrabold text-[#174F43] text-xs flex items-center gap-1.5">
                     <Tag size={15} />
                     <span>الأسعار والأحجام الثابتة (30ml / 50ml / 100ml)</span>
                   </span>
@@ -680,7 +828,7 @@ export default function ProductsPage() {
                     return (
                       <div key={sz} className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="font-extrabold text-xs text-[#03204E]">{sz}</span>
+                          <span className="font-extrabold text-xs text-[#174F43]">{sz}</span>
                           <span className="text-[10px] bg-white px-2 py-0.5 rounded-md border border-slate-200 text-slate-600 font-mono font-bold">
                             ثابت
                           </span>
@@ -695,7 +843,7 @@ export default function ProductsPage() {
                             value={variant.price}
                             onChange={(e) => handleVariantPriceChange(sz, 'price', e.target.value)}
                             placeholder="400"
-                            className="w-full h-9 bg-white border border-slate-200 rounded-xl px-2.5 text-xs font-mono font-bold outline-none focus:border-[#03204E]"
+                            className="w-full h-9 bg-white border border-slate-200 rounded-xl px-2.5 text-xs font-mono font-bold outline-none focus:border-[#174F43]"
                           />
                         </div>
 
@@ -707,7 +855,7 @@ export default function ProductsPage() {
                             value={variant.compareAtPrice || ''}
                             onChange={(e) => handleVariantPriceChange(sz, 'compareAtPrice', e.target.value)}
                             placeholder="مثال: 500"
-                            className="w-full h-9 bg-white border border-slate-200 rounded-xl px-2.5 text-xs font-mono text-slate-500 outline-none focus:border-[#03204E]"
+                            className="w-full h-9 bg-white border border-slate-200 rounded-xl px-2.5 text-xs font-mono text-slate-500 outline-none focus:border-[#174F43]"
                           />
                         </div>
                       </div>
@@ -719,7 +867,7 @@ export default function ProductsPage() {
               {/* Section 4: Exactly 4 Defined Image Inputs */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between pb-1 border-b border-slate-100">
-                  <span className="font-extrabold text-[#03204E] text-xs flex items-center gap-1.5">
+                  <span className="font-extrabold text-[#174F43] text-xs flex items-center gap-1.5">
                     <ImageIcon size={15} />
                     <span>صور العطر الأربعة المخصصة (4 Defined Product Images)</span>
                   </span>
@@ -730,7 +878,7 @@ export default function ProductsPage() {
                   {/* Slot 1: Main Product Image */}
                   <div className="p-3.5 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-extrabold text-xs text-[#03204E] flex items-center gap-1">
+                      <span className="font-extrabold text-xs text-[#174F43] flex items-center gap-1">
                         <span>1. الصورة الرئيسية (Main Image) *</span>
                       </span>
                       <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-md">
@@ -751,7 +899,7 @@ export default function ProductsPage() {
                       <div className="flex-1 space-y-1.5">
                         <div className="flex items-center gap-1.5">
                           <label className="flex-1 cursor-pointer">
-                            <span className="w-full h-8 bg-white border border-slate-200 hover:bg-slate-100 text-[#03204E] rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs">
+                            <span className="w-full h-8 bg-white border border-slate-200 hover:bg-slate-100 text-[#174F43] rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs">
                               {uploadingRole === 'mainImage' ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
                               <span>رفع صورة من الجهاز</span>
                             </span>
@@ -780,7 +928,7 @@ export default function ProductsPage() {
                           value={formData.mainImage?.url || ''}
                           onChange={(e) => handleImageUrlChange('mainImage', e.target.value)}
                           placeholder="أو ضع رابط الصورة المباشر هنا..."
-                          className="w-full h-7 bg-white border border-slate-200 rounded-lg px-2 text-[10px] font-mono outline-none focus:border-[#03204E]"
+                          className="w-full h-7 bg-white border border-slate-200 rounded-lg px-2 text-[10px] font-mono outline-none focus:border-[#174F43]"
                         />
                       </div>
                     </div>
@@ -789,7 +937,7 @@ export default function ProductsPage() {
                   {/* Slot 2: Hover Image */}
                   <div className="p-3.5 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-extrabold text-xs text-[#03204E]">
+                      <span className="font-extrabold text-xs text-[#174F43]">
                         2. صورة التفاعل (Hover Image)
                       </span>
                       <span className="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-md">
@@ -810,7 +958,7 @@ export default function ProductsPage() {
                       <div className="flex-1 space-y-1.5">
                         <div className="flex items-center gap-1.5">
                           <label className="flex-1 cursor-pointer">
-                            <span className="w-full h-8 bg-white border border-slate-200 hover:bg-slate-100 text-[#03204E] rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs">
+                            <span className="w-full h-8 bg-white border border-slate-200 hover:bg-slate-100 text-[#174F43] rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs">
                               {uploadingRole === 'hoverImage' ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
                               <span>رفع صورة من الجهاز</span>
                             </span>
@@ -839,7 +987,7 @@ export default function ProductsPage() {
                           value={formData.hoverImage?.url || ''}
                           onChange={(e) => handleImageUrlChange('hoverImage', e.target.value)}
                           placeholder="أو ضع رابط الصورة المباشر..."
-                          className="w-full h-7 bg-white border border-slate-200 rounded-lg px-2 text-[10px] font-mono outline-none focus:border-[#03204E]"
+                          className="w-full h-7 bg-white border border-slate-200 rounded-lg px-2 text-[10px] font-mono outline-none focus:border-[#174F43]"
                         />
                       </div>
                     </div>
@@ -848,7 +996,7 @@ export default function ProductsPage() {
                   {/* Slot 3: Fragrance Pyramid Image */}
                   <div className="p-3.5 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-extrabold text-xs text-[#03204E]">
+                      <span className="font-extrabold text-xs text-[#174F43]">
                         3. صورة الهرم العطري (Pyramid Image)
                       </span>
                       <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-md">
@@ -869,7 +1017,7 @@ export default function ProductsPage() {
                       <div className="flex-1 space-y-1.5">
                         <div className="flex items-center gap-1.5">
                           <label className="flex-1 cursor-pointer">
-                            <span className="w-full h-8 bg-white border border-slate-200 hover:bg-slate-100 text-[#03204E] rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs">
+                            <span className="w-full h-8 bg-white border border-slate-200 hover:bg-slate-100 text-[#174F43] rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs">
                               {uploadingRole === 'pyramidImage' ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
                               <span>رفع صورة من الجهاز</span>
                             </span>
@@ -898,7 +1046,7 @@ export default function ProductsPage() {
                           value={formData.pyramidImage?.url || ''}
                           onChange={(e) => handleImageUrlChange('pyramidImage', e.target.value)}
                           placeholder="أو ضع رابط الصورة المباشر..."
-                          className="w-full h-7 bg-white border border-slate-200 rounded-lg px-2 text-[10px] font-mono outline-none focus:border-[#03204E]"
+                          className="w-full h-7 bg-white border border-slate-200 rounded-lg px-2 text-[10px] font-mono outline-none focus:border-[#174F43]"
                         />
                       </div>
                     </div>
@@ -907,7 +1055,7 @@ export default function ProductsPage() {
                   {/* Slot 4: Packaging Image */}
                   <div className="p-3.5 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-extrabold text-xs text-[#03204E]">
+                      <span className="font-extrabold text-xs text-[#174F43]">
                         4. صورة التغليف الفاخر (Packaging Image)
                       </span>
                       <span className="text-[10px] bg-cyan-100 text-cyan-800 font-bold px-2 py-0.5 rounded-md">
@@ -928,7 +1076,7 @@ export default function ProductsPage() {
                       <div className="flex-1 space-y-1.5">
                         <div className="flex items-center gap-1.5">
                           <label className="flex-1 cursor-pointer">
-                            <span className="w-full h-8 bg-white border border-slate-200 hover:bg-slate-100 text-[#03204E] rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs">
+                            <span className="w-full h-8 bg-white border border-slate-200 hover:bg-slate-100 text-[#174F43] rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs">
                               {uploadingRole === 'packagingImage' ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
                               <span>رفع صورة من الجهاز</span>
                             </span>
@@ -957,7 +1105,7 @@ export default function ProductsPage() {
                           value={formData.packagingImage?.url || ''}
                           onChange={(e) => handleImageUrlChange('packagingImage', e.target.value)}
                           placeholder="أو ضع رابط الصورة المباشر..."
-                          className="w-full h-7 bg-white border border-slate-200 rounded-lg px-2 text-[10px] font-mono outline-none focus:border-[#03204E]"
+                          className="w-full h-7 bg-white border border-slate-200 rounded-lg px-2 text-[10px] font-mono outline-none focus:border-[#174F43]"
                         />
                       </div>
                     </div>
@@ -977,7 +1125,7 @@ export default function ProductsPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-6 py-2 bg-[#03204E] text-white rounded-xl hover:bg-[#02183b] h-10 font-bold disabled:opacity-50 shadow-sm"
+                  className="px-6 py-2 bg-[#174F43] text-white rounded-xl hover:bg-[#0F3830] h-10 font-bold disabled:opacity-50 shadow-sm"
                 >
                   {submitting ? 'جاري الحفظ...' : editingId ? 'تحديث العطر' : 'حفظ ونشر العطر'}
                 </button>
@@ -989,3 +1137,4 @@ export default function ProductsPage() {
     </div>
   );
 }
+

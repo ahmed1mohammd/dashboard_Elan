@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Lock, Phone, AlertCircle, RefreshCw, ArrowLeft } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
+import { User, Lock, AlertCircle, RefreshCw, ArrowLeft, ArrowRight, Globe } from 'lucide-react';
 
 export default function LoginPage() {
-  const [phone, setPhone] = useState('01000000001');
+  const [identifier, setIdentifier] = useState('m20.fragrances.26@gmail.com');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { lang, dir, isRTL, toggleLang } = useLanguage();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -17,14 +20,14 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await login(phone);
+      await login({ identifier, password });
       navigate('/');
     } catch (err) {
       console.error(err);
       setError(
         err.message ||
         err.response?.data?.message || 
-        'رقم الهاتف غير مسجل كمدير نظام (Admin).'
+        (isRTL ? 'بيانات الدخول غير صحيحة أو لا تمتلك صلاحيات مدير النظام.' : 'Invalid credentials or account is not authorized as Administrator.')
       );
     } finally {
       setLoading(false);
@@ -32,30 +35,40 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4 rtl font-['Tajawal',sans-serif]">
-      <div className="w-full max-w-sm bg-white border border-slate-200 rounded-sm p-6 sm:p-8 text-right">
+    <div dir={dir} className={`min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4 ${isRTL ? "font-['Cairo',sans-serif]" : "font-sans"}`}>
+      <div className="w-full max-w-sm bg-white border border-slate-200 rounded-sm p-6 sm:p-8 shadow-xs">
         
-        {/* Brand Header */}
-        <div className="text-center mb-6">
-          <h1 className="font-serif text-3xl font-bold tracking-[0.2em] text-[#03204E]">
-            ÉLAN
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">لوحة التحكم وإدارة المتجر</p>
-        </div>
-
-        {/* Credentials helper */}
-        <div className="mb-5 p-3 rounded-sm bg-[#F8FAFC] border border-slate-200 text-slate-700 text-xs flex items-center justify-between">
-          <div className="flex items-center gap-1.5 font-mono">
-            <span className="text-slate-500">حساب الأدمن:</span>
-            <span className="font-semibold text-slate-900">01000000001</span>
-          </div>
+        {/* Language switch top */}
+        <div className="flex justify-end mb-4">
           <button
             type="button"
-            onClick={() => setPhone('01000000001')}
-            className="px-2 py-1 rounded-sm border border-slate-300 bg-white hover:bg-slate-50 text-[#03204E] text-[11px] font-medium transition-colors"
+            onClick={toggleLang}
+            className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-xs font-bold text-[#174F43] transition-colors"
           >
-            تعبئة تلقائية
+            <Globe size={13} />
+            <span>{lang === 'en' ? 'العربية' : 'English'}</span>
           </button>
+        </div>
+
+        {/* Brand Header */}
+        <div className="text-center mb-6">
+          <div className="flex justify-center mb-2">
+            <img 
+              src="/img/m20-logo-emerald.png" 
+              alt="M20 Fine Fragrances" 
+              className="h-11 sm:h-12 w-auto object-contain drop-shadow-xs"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = '/img/m20-logo.png';
+              }}
+            />
+          </div>
+          <h1 className="font-serif text-2xl font-bold tracking-[0.2em] text-[#174F43]">
+            M20
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
+            {isRTL ? 'لوحة التحكم وإدارة العمليات' : 'Management & Operations Suite'}
+          </p>
         </div>
 
         {/* Error message */}
@@ -69,41 +82,64 @@ export default function LoginPage() {
         {/* Login Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">رقم هاتف الأدمن</label>
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              {isRTL ? 'البريد الإلكتروني أو الهاتف' : 'Admin Email or Phone'}
+            </label>
             <div className="relative flex items-center">
               <input
                 type="text"
                 required
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="01000000001"
-                className="w-full h-10 bg-white border border-slate-200 focus:border-[#03204E] rounded-sm px-3 pr-8 text-slate-900 placeholder:text-slate-400 text-xs font-mono outline-none transition-colors"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                placeholder="m20.fragrances.26@gmail.com"
+                className={`w-full h-10 bg-white border border-slate-200 focus:border-[#174F43] rounded-sm px-3 ${
+                  isRTL ? 'pr-8' : 'pl-8'
+                } text-slate-900 placeholder:text-slate-400 text-xs font-mono outline-none transition-colors`}
               />
-              <Phone size={14} className="text-slate-400 absolute right-2.5" />
+              <User size={14} className={`text-slate-400 absolute ${isRTL ? 'right-2.5' : 'left-2.5'}`} />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              {isRTL ? 'كلمة المرور' : 'Password'}
+            </label>
+            <div className="relative flex items-center">
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••••••"
+                className={`w-full h-10 bg-white border border-slate-200 focus:border-[#174F43] rounded-sm px-3 ${
+                  isRTL ? 'pr-8' : 'pl-8'
+                } text-slate-900 placeholder:text-slate-400 text-xs font-mono outline-none transition-colors`}
+              />
+              <Lock size={14} className={`text-slate-400 absolute ${isRTL ? 'right-2.5' : 'left-2.5'}`} />
             </div>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full h-10 bg-[#03204E] hover:bg-[#02183b] text-white font-medium text-xs rounded-sm flex items-center justify-center gap-2 transition-colors duration-150 disabled:opacity-50"
+            className="w-full h-10 bg-[#174F43] hover:bg-[#0F3830] text-white font-medium text-xs rounded-sm flex items-center justify-center gap-2 transition-colors duration-150 disabled:opacity-50 cursor-pointer"
           >
             {loading ? (
               <>
                 <RefreshCw size={14} className="animate-spin" />
-                <span>جاري الدخول...</span>
+                <span>{isRTL ? 'جاري الدخول...' : 'Signing In...'}</span>
               </>
             ) : (
               <>
-                <span>دخول إلى لوحة التحكم</span>
-                <ArrowLeft size={14} />
+                <span>{isRTL ? 'دخول إلى لوحة التحكم' : 'Sign In to Dashboard'}</span>
+                {isRTL ? <ArrowLeft size={14} /> : <ArrowRight size={14} />}
               </>
             )}
           </button>
         </form>
 
         <div className="mt-6 pt-4 border-t border-slate-200 text-center text-[11px] text-slate-400">
-          <p>© 2026 ÉLAN Fine Fragrances</p>
+          <p>© 2026 M20 Fine Fragrances</p>
         </div>
       </div>
     </div>

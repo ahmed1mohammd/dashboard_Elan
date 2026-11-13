@@ -2,10 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import Swal from 'sweetalert2';
+import { useLanguage } from '../context/LanguageContext';
+import { EGYPT_GOVERNORATES, getGovernorateRate, getGovernorateObject } from '../data/egyptGovernorates';
 import { 
   getOrders, 
   updateOrderStatus, 
   verifyOrderPayment, 
+  confirmReturnRestock,
+  processReturnRefund,
   getCashAccounts,
   getProducts,
   createAdminOrder
@@ -15,42 +19,46 @@ import {
   Eye, X, Tag, Smartphone, CreditCard, DollarSign, Home, Train, 
   MessageSquare, Phone, Mail, Printer, ShieldCheck, FileText, 
   ExternalLink, ZoomIn, ArrowUpDown, ChevronRight, Check, AlertCircle, Building, MapPin,
-  Plus, Trash2, ShoppingBag, User, Wallet
+  Plus, Trash2, ShoppingBag, User, Wallet, RotateCcw, Undo2, AlertTriangle, Archive, Banknote, Save
 } from 'lucide-react';
 
-const EGYPT_GOVERNORATES = [
-  'القاهرة (Cairo)', 'الجيزة (Giza)', 'الإسكندرية (Alexandria)', 'القليوبية (Qalyubia)',
-  'الشرقية (Sharqia)', 'الدقهلية (Dakahlia)', 'الغربية (Gharbia)', 'المنوفية (Monufia)',
-  'البحيرة (Beheira)', 'كفر الشيخ (Kafr El Sheikh)', 'دمياط (Damietta)', 'بورسعيد (Port Said)',
-  'الإسماعيلية (Ismailia)', 'السويس (Suez)', 'الفيوم (Faiyum)', 'بني سويف (Beni Suef)',
-  'المنيا (Minya)', 'أسيوط (Assiut)', 'سوهاج (Sohag)', 'قنا (Qena)',
-  'الأقصر (Luxor)', 'أسوان (Aswan)', 'البحر الأحمر (Red Sea)', 'شمال سيناء (North Sinai)',
-  'جنوب سيناء (South Sinai)', 'مطروح (Matrouh)', 'الوادي الجديد (New Valley)'
-];
-
-const statusConfig = {
-  all: { label: 'جميع الطلبات', color: 'text-slate-700', bg: 'bg-slate-100', border: 'border-slate-200' },
-  pending: { label: 'قيد الانتظار', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
-  confirmed: { label: 'تم التأكيد', color: 'text-[#03204E]', bg: 'bg-blue-50', border: 'border-blue-200' },
-  processing: { label: 'جاري التجهيز', color: 'text-indigo-700', bg: 'bg-indigo-50', border: 'border-indigo-200' },
-  shipped: { label: 'جاري الشحن', color: 'text-sky-700', bg: 'bg-sky-50', border: 'border-sky-200' },
-  delivered: { label: 'تم التوصيل', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
-  cancelled: { label: 'ملغي', color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-200' },
+const formatGovernorate = (govStr, isRTL) => {
+  if (!govStr) return '-';
+  const gov = getGovernorateObject(govStr);
+  if (gov) {
+    return isRTL ? gov.nameAr : gov.nameEn;
+  }
+  if (govStr.includes('(') && govStr.includes(')')) {
+    const parts = govStr.split(/[()]/).filter(Boolean);
+    return isRTL ? parts[0].trim() : (parts[1]?.trim() || parts[0].trim());
+  }
+  return govStr;
 };
 
-const renderPaymentMethodBadge = (method, isPaid) => {
+const statusConfig = {
+  all: { labelAr: 'جميع الطلبات', labelEn: 'All Orders', color: 'text-slate-700', bg: 'bg-slate-100', border: 'border-slate-200' },
+  pending: { labelAr: 'قيد الانتظار', labelEn: 'Pending', color: 'text-amber-800', bg: 'bg-amber-50', border: 'border-amber-200' },
+  confirmed: { labelAr: 'تم التأكيد', labelEn: 'Confirmed', color: 'text-[#174F43]', bg: 'bg-[#174F43]/10', border: 'border-[#174F43]/25' },
+  processing: { labelAr: 'جاري التجهيز', labelEn: 'Processing', color: 'text-[#B45309]', bg: 'bg-[#FF9D00]/15', border: 'border-[#FF9D00]/30' },
+  shipped: { labelAr: 'جاري الشحن', labelEn: 'Shipped', color: 'text-sky-800', bg: 'bg-sky-50', border: 'border-sky-200' },
+  delivered: { labelAr: 'تم التوصيل', labelEn: 'Delivered', color: 'text-[#174F43]', bg: 'bg-[#174F43]/15', border: 'border-[#174F43]/30' },
+  returned_from_shipping: { labelAr: 'مرتجع من الشحن', labelEn: 'Returned from Shipping', color: 'text-amber-900', bg: 'bg-amber-100/90', border: 'border-amber-300' },
+  cancelled: { labelAr: 'ملغي', labelEn: 'Cancelled', color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-200' },
+};
+
+const renderPaymentMethodBadge = (method, isPaid, isRTL = true) => {
   let icon = <DollarSign size={12} strokeWidth={1.5} />;
-  let label = 'عند الاستلام';
+  let label = isRTL ? 'عند الاستلام' : 'COD';
   
   if (method === 'vodafone_cash') {
     icon = <Smartphone size={12} strokeWidth={1.5} />;
-    label = 'فودافون كاش';
+    label = isRTL ? 'فودافون كاش' : 'Vodafone Cash';
   } else if (method === 'instapay') {
     icon = <Smartphone size={12} strokeWidth={1.5} />;
-    label = 'إنستاباي';
+    label = isRTL ? 'إنستاباي' : 'InstaPay';
   } else if (method === 'card' || method === 'fawaterk') {
     icon = <CreditCard size={12} strokeWidth={1.5} />;
-    label = 'دفع إلكتروني';
+    label = isRTL ? 'دفع إلكتروني' : 'Card / Online';
   }
 
   return (
@@ -61,11 +69,11 @@ const renderPaymentMethodBadge = (method, isPaid) => {
       </span>
       {isPaid ? (
         <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-          <Check size={10} strokeWidth={2} /> مدفوع
+          <Check size={10} strokeWidth={2} /> {isRTL ? 'مدفوع' : 'Paid'}
         </span>
       ) : (
         <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.2 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-          معلق
+          {isRTL ? 'معلق' : 'Pending'}
         </span>
       )}
     </div>
@@ -79,8 +87,8 @@ const initialNewOrderState = {
   customerEmail: '',
   deliveryMethod: 'home_delivery',
   shippingAddress: {
-    governorate: 'القاهرة (Cairo)',
-    city: 'القاهرة',
+    governorate: 'Giza',
+    city: 'الجيزة',
     street: '',
     buildingNumber: '',
     floor: '',
@@ -96,7 +104,7 @@ const initialNewOrderState = {
   items: [
     { productId: '', size: '50ml', price: 1450, quantity: 1 }
   ],
-  shipping: 50,
+  shipping: 65,
   discount: 0,
   paymentMethod: 'cash_on_delivery',
   paymentStatus: 'pending',
@@ -106,6 +114,7 @@ const initialNewOrderState = {
 };
 
 export default function OrdersPage() {
+  const { lang, isRTL, formatCurrency } = useLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
   const [orders, setOrders] = useState([]);
   const [cashAccounts, setCashAccounts] = useState([]);
@@ -124,13 +133,53 @@ export default function OrdersPage() {
   const [verifyingPayment, setVerifyingPayment] = useState(false);
   const [printMode, setPrintMode] = useState(null); // 'invoice' | 'shipping' | null
 
+  // Carrier Cost Inline Editing
+  const [editingCarrierCost, setEditingCarrierCost] = useState(false);
+  const [carrierCostInput, setCarrierCostInput] = useState('');
+  const [savingCarrierCost, setSavingCarrierCost] = useState(false);
+
   // Create Order Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createFormData, setCreateFormData] = useState(initialNewOrderState);
   const [creatingOrder, setCreatingOrder] = useState(false);
 
+  // Return Shipping Modal State
+  const [returnModalOrder, setReturnModalOrder] = useState(null);
+  const [returnForm, setReturnForm] = useState({
+    outboundShippingCost: 65,
+    returnShippingCost: 65,
+    returnReason: 'رفض العميل الاستلام',
+    paymentAccountId: '',
+    notes: ''
+  });
+  const [submittingReturn, setSubmittingReturn] = useState(false);
+
+  // Customer Refund Modal State
+  const [refundModalOrder, setRefundModalOrder] = useState(null);
+  const [refundForm, setRefundForm] = useState({
+    refundAmount: 0,
+    cashAccountId: '',
+    notes: ''
+  });
+  const [submittingRefund, setSubmittingRefund] = useState(false);
+  const [inspectingRestock, setInspectingRestock] = useState(false);
+
   const invoicePrintRef = useRef(null);
   const shippingPrintRef = useRef(null);
+
+  const getItemImage = (item) => {
+    if (item?.product && typeof item.product === 'object') {
+      if (item.product.mainImage?.url) return item.product.mainImage.url;
+      if (item.product.images?.[0]?.url) return item.product.images[0].url;
+    }
+    const prodId = item?.product?._id || item?.product || item?.productId;
+    if (prodId && Array.isArray(productsList)) {
+      const found = productsList.find(p => p._id === prodId || p.id === prodId);
+      if (found?.mainImage?.url) return found.mainImage.url;
+      if (found?.images?.[0]?.url) return found.images[0].url;
+    }
+    return '/img/product.png';
+  };
 
   const fetchOrdersAndAccounts = async () => {
     setLoading(true);
@@ -166,30 +215,247 @@ export default function OrdersPage() {
     if (qStatus) setSelectedStatus(qStatus);
   }, [searchParams]);
 
-  const handleStatusChange = async (orderId, newStatus) => {
-    setUpdatingStatus(true);
+  useEffect(() => {
+    if (selectedOrder) {
+      const defaultCost = Math.round(Number(
+        selectedOrder.actualOutboundShippingCost ??
+        selectedOrder.realShippingCost ??
+        getGovernorateRate(selectedOrder.shippingAddress?.governorate) ??
+        65
+      ));
+      setCarrierCostInput(defaultCost);
+      setEditingCarrierCost(false);
+    }
+  }, [selectedOrder?._id]);
+
+  const handleSaveCarrierCost = async () => {
+    if (!selectedOrder) return;
+    const cost = Math.max(0, Math.round(Number(carrierCostInput) || 0));
+    setSavingCarrierCost(true);
     try {
-      await updateOrderStatus(orderId, newStatus);
-      setOrders(prev => prev.map(o => o._id === orderId ? { ...o, orderStatus: newStatus } : o));
-      if (selectedOrder && selectedOrder._id === orderId) {
-        setSelectedOrder(prev => ({ ...prev, orderStatus: newStatus }));
-      }
+      const res = await updateOrderStatus(selectedOrder._id, {
+        actualOutboundShippingCost: cost
+      });
+      const updated = res || {
+        ...selectedOrder,
+        actualOutboundShippingCost: cost,
+        realShippingCost: cost
+      };
+      setOrders(prev => prev.map(o => o._id === selectedOrder._id ? { ...o, ...updated, actualOutboundShippingCost: cost, realShippingCost: cost } : o));
+      setSelectedOrder(prev => ({ ...prev, ...updated, actualOutboundShippingCost: cost, realShippingCost: cost }));
+      setEditingCarrierCost(false);
       Swal.fire({
         toast: true,
         position: 'top-end',
         icon: 'success',
-        title: 'تم تحديث حالة الطلب بنجاح',
+        title: isRTL ? 'تم حفظ تكلفة الشحن الفعلية للشركة بنجاح' : 'Actual outbound carrier cost saved successfully',
         showConfirmButton: false,
         timer: 2000
       });
     } catch (err) {
       Swal.fire({
         icon: 'error',
-        title: 'خطأ',
-        text: err.response?.data?.message || 'تعذر تحديث حالة الطلب'
+        title: isRTL ? 'خطأ' : 'Error',
+        text: err.response?.data?.message || (isRTL ? 'تعذر حفظ تكلفة الشحن' : 'Failed to update carrier shipping cost')
+      });
+    } finally {
+      setSavingCarrierCost(false);
+    }
+  };
+
+  const handleOpenReturnModal = (order) => {
+    setReturnModalOrder(order);
+    const govRate = getGovernorateRate(order.shippingAddress?.governorate);
+    const outFee = Math.round(Number(order.returnDetails?.outboundShippingFee ?? (order.actualOutboundShippingCost || order.realShippingCost || order.shipping || govRate || 65)));
+    const retFee = Math.round(Number(order.returnDetails?.returnShippingFee ?? (order.actualReturnShippingCost || order.actualOutboundShippingCost || order.realShippingCost || order.shipping || govRate || 65)));
+    setReturnForm({
+      outboundShippingCost: outFee,
+      returnShippingCost: retFee,
+      returnReason: order.returnDetails?.returnReason || (isRTL ? 'رفض العميل الاستلام' : 'Customer Refused Delivery'),
+      paymentAccountId: order.returnDetails?.paymentAccountId || (cashAccounts[0]?._id || ''),
+      notes: order.returnDetails?.inspectionNotes || ''
+    });
+  };
+
+  const handleStatusChange = async (orderId, newStatus) => {
+    if (newStatus === 'returned_from_shipping') {
+      const targetOrder = orders.find(o => o._id === orderId) || (selectedOrder?._id === orderId ? selectedOrder : null);
+      if (targetOrder) {
+        handleOpenReturnModal(targetOrder);
+        return;
+      }
+    }
+
+    setUpdatingStatus(true);
+    try {
+      const res = await updateOrderStatus(orderId, newStatus);
+      const updated = res || { orderStatus: newStatus };
+      setOrders(prev => prev.map(o => o._id === orderId ? { ...o, ...updated, orderStatus: newStatus } : o));
+      if (selectedOrder && selectedOrder._id === orderId) {
+        setSelectedOrder(prev => ({ ...prev, ...updated, orderStatus: newStatus }));
+      }
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: isRTL ? 'تم تحديث حالة الطلب بنجاح' : 'Order status updated successfully',
+        showConfirmButton: false,
+        timer: 2000
+      });
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: isRTL ? 'خطأ' : 'Error',
+        text: err.response?.data?.message || (isRTL ? 'تعذر تحديث حالة الطلب' : 'Failed to update order status')
       });
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  const handleSubmitReturn = async (e) => {
+    e.preventDefault();
+    if (!returnModalOrder) return;
+    setSubmittingReturn(true);
+    try {
+      const outCost = Math.max(0, Math.round(Number(returnForm.outboundShippingCost) || 0));
+      const retCost = Math.max(0, Math.round(Number(returnForm.returnShippingCost) || 0));
+      const totalCharge = outCost + retCost;
+
+      const res = await updateOrderStatus(returnModalOrder._id, {
+        orderStatus: 'returned_from_shipping',
+        outboundShippingCost: outCost,
+        returnShippingCost: retCost,
+        actualOutboundShippingCost: outCost,
+        actualReturnShippingCost: retCost,
+        returnReason: returnForm.returnReason,
+        paymentAccountId: returnForm.paymentAccountId || null,
+        notes: returnForm.notes
+      });
+
+      const updated = res || {
+        ...returnModalOrder,
+        orderStatus: 'returned_from_shipping',
+        actualOutboundShippingCost: outCost,
+        actualReturnShippingCost: retCost,
+        realShippingCost: outCost,
+        returnDetails: {
+          isReturned: true,
+          returnedAt: new Date(),
+          outboundShippingFee: outCost,
+          returnShippingFee: retCost,
+          totalReturnShippingCost: totalCharge,
+          returnReason: returnForm.returnReason,
+          restockStatus: 'not_inspected',
+          shippingExpenseRecorded: totalCharge > 0
+        }
+      };
+
+      setOrders(prev => prev.map(o => o._id === returnModalOrder._id ? { ...o, ...updated } : o));
+      if (selectedOrder && selectedOrder._id === returnModalOrder._id) {
+        setSelectedOrder(prev => ({ ...prev, ...updated }));
+      }
+
+      setReturnModalOrder(null);
+      Swal.fire({
+        icon: 'success',
+        title: isRTL ? 'تم تسجيل المرتجع ومصروف الشحن' : 'Return and shipping expense recorded',
+        text: isRTL 
+          ? `تم تعيين حالة الطلب إلى "مرتجع من الشحن"، وإدراج مصاريف الشحن (${totalCharge} ج.م) كمصروف في الحسابات دون المساس بالمخزون حتى الفحص.`
+          : `Order status set to "Returned from Shipping", carrier charges (${totalCharge} EGP) recorded under Shipping Expenses.`
+      });
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: isRTL ? 'خطأ' : 'Error',
+        text: err.response?.data?.message || (isRTL ? 'تعذر تسجيل بيانات المرتجع' : 'Failed to record return details')
+      });
+    } finally {
+      setSubmittingReturn(false);
+    }
+  };
+
+  const handleConfirmRestock = async (order, outcome) => {
+    const isReusable = outcome === 'reusable';
+    const result = await Swal.fire({
+      title: isReusable ? 'تأكيد سلامة المنتجات واسترجاع السائل' : 'تسجيل تلف المنتجات المسترجعة',
+      text: isReusable 
+        ? 'هل تم فحص زجاجات العطر والتأكد من أنها سليمة ومغلقة تماماً؟ سيتم إعادة السائل الفعلي إلى رصيد Finished Liquid وتسجيل حركة RETURN بالمخزون.'
+        : 'هل الزجاجات تالفة أو مفتوحة؟ سيتم تسجيل تلف الشحنة واستبعادها ولن يتم إضافتها للمخزون.',
+      input: 'text',
+      inputPlaceholder: 'ملاحظات الفحص والمعاينة (اختياري)...',
+      icon: isReusable ? 'question' : 'warning',
+      showCancelButton: true,
+      confirmButtonText: isReusable ? 'تأكيد واسترجاع للمخزون' : 'تأكيد تسجيل التلف واستبعادها',
+      cancelButtonText: 'إلغاء',
+      confirmButtonColor: isReusable ? '#174F43' : '#DC2626'
+    });
+
+    if (!result.isConfirmed) return;
+
+    setInspectingRestock(true);
+    try {
+      const updated = await confirmReturnRestock(order._id, {
+        inspectionOutcome: outcome,
+        inspectionNotes: result.value || ''
+      });
+
+      setOrders(prev => prev.map(o => o._id === order._id ? { ...o, ...updated } : o));
+      if (selectedOrder && selectedOrder._id === order._id) {
+        setSelectedOrder(prev => ({ ...prev, ...updated }));
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: isReusable ? 'تم استرجاع السائل للمخزون بنجاح' : 'تم توثيق تلف المرتجع',
+        text: isReusable 
+          ? 'تمت إضافة السائل للمخزون وتسجيل حركة في سجل المخزون.' 
+          : 'تم توثيق التلف دون التأثير على المخزون.'
+      });
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'خطأ',
+        text: err.response?.data?.message || 'تعذر إتمام عملية الفحص والاسترجاع'
+      });
+    } finally {
+      setInspectingRestock(false);
+    }
+  };
+
+  const handleOpenRefundModal = (order) => {
+    setRefundModalOrder(order);
+    setRefundForm({
+      refundAmount: order.total || 0,
+      cashAccountId: order.cashAccount || (cashAccounts[0]?._id || ''),
+      notes: 'استرداد كامل لقيمة الطلب بعد رفض الاستلام وارتجاع الشحنة'
+    });
+  };
+
+  const handleSubmitRefund = async (e) => {
+    e.preventDefault();
+    if (!refundModalOrder) return;
+    setSubmittingRefund(true);
+    try {
+      const updated = await processReturnRefund(refundModalOrder._id, refundForm);
+      setOrders(prev => prev.map(o => o._id === refundModalOrder._id ? { ...o, ...updated } : o));
+      if (selectedOrder && selectedOrder._id === refundModalOrder._id) {
+        setSelectedOrder(prev => ({ ...prev, ...updated }));
+      }
+      setRefundModalOrder(null);
+      Swal.fire({
+        icon: 'success',
+        title: 'تم استرداد المبلغ بنجاح',
+        text: `تم خصم ${refundForm.refundAmount} ج.م من الخزينة المحددة وتسجيل حركة الاسترداد.`
+      });
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'خطأ',
+        text: err.response?.data?.message || 'تعذر معالجة الاسترداد'
+      });
+    } finally {
+      setSubmittingRefund(false);
     }
   };
 
@@ -210,7 +476,7 @@ export default function OrdersPage() {
         icon: 'success',
         title: 'تم التحقق من الدفع وإيداعه بنجاح!',
         text: `تم تأكيد سداد الطلب #${selectedOrder.orderNumber} وترحيل المبلغ إلى حساب الخزينة المحدد وإرسال إشعار للعميل.`,
-        confirmButtonColor: '#03204E',
+        confirmButtonColor: '#174F43',
         confirmButtonText: 'حسناً'
       });
     } catch (err) {
@@ -332,7 +598,7 @@ export default function OrdersPage() {
     setCreatingOrder(true);
     try {
       const payload = {
-        customerName: createFormData.customerName?.trim() || 'عميل ÉLAN',
+        customerName: createFormData.customerName?.trim() || 'عميل M20',
         customerPhone: createFormData.customerPhone.trim(),
         customerPhone2: createFormData.customerPhone2?.trim() || null,
         customerEmail: createFormData.customerEmail?.trim() || null,
@@ -362,7 +628,7 @@ export default function OrdersPage() {
         icon: 'success',
         title: 'تم إنشاء الطلب بنجاح!',
         text: `تم تسجيل الطلب رقم #${res.orderNumber || ''} بنجاح ويمكنك الآن طباعة الفاتورة أو البوليصة.`,
-        confirmButtonColor: '#03204E',
+        confirmButtonColor: '#174F43',
         confirmButtonText: 'عرض تفاصيل الطلب'
       }).then(() => {
         if (res) setSelectedOrder(res);
@@ -385,6 +651,7 @@ export default function OrdersPage() {
     processing: orders.filter(o => o.orderStatus === 'processing').length,
     shipped: orders.filter(o => o.orderStatus === 'shipped').length,
     delivered: orders.filter(o => o.orderStatus === 'delivered').length,
+    returned_from_shipping: orders.filter(o => o.orderStatus === 'returned_from_shipping').length,
     cancelled: orders.filter(o => o.orderStatus === 'cancelled').length,
   };
 
@@ -404,20 +671,20 @@ export default function OrdersPage() {
   });
 
   return (
-    <div className="space-y-6 text-right font-['Tajawal',sans-serif]">
+    <div className="space-y-6 text-right font-['Cairo',sans-serif]">
       {/* Screen Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200/80">
         <div>
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#03204E] to-[#083375] text-white flex items-center justify-center shadow-md shadow-[#03204E]/10">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#174F43] to-[#0F3830] text-white flex items-center justify-center shadow-md shadow-[#174F43]/10">
               <Truck size={20} strokeWidth={1.5} />
             </div>
             <div>
-              <h1 className="text-xl font-extrabold text-[#03204E] tracking-tight">
+              <h1 className="text-xl font-extrabold text-[#174F43] tracking-tight">
                 إدارة الطلبات والشحنات والفواتير
               </h1>
               <p className="text-xs text-slate-500 font-medium">
-                إنشاء طلبات يدوية، التحقق الفوري من إيصالات الدفع، وإصدار بوالص الشحن وفواتير 10×15 سم.
+                إنشاء طلبات يدوية، التحقق الفوري من إيصالات الدفع، إدارة المرتجعات، وإصدار الفواتير وبوالص الشحن.
               </p>
             </div>
           </div>
@@ -426,7 +693,7 @@ export default function OrdersPage() {
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <button
             onClick={handleOpenCreateOrder}
-            className="px-4 py-2.5 rounded-xl bg-[#03204E] hover:bg-[#02183b] text-white text-xs font-bold flex items-center gap-2 transition-all shadow-sm hover:shadow active:scale-95"
+            className="px-4 py-2.5 rounded-xl bg-[#174F43] hover:bg-[#0F3830] text-white text-xs font-bold flex items-center gap-2 transition-all shadow-sm hover:shadow active:scale-95"
           >
             <Plus size={16} />
             <span>إنشاء طلب يدوي جديد</span>
@@ -437,20 +704,22 @@ export default function OrdersPage() {
             className="p-2.5 rounded-xl border border-slate-200 bg-white/80 backdrop-blur hover:bg-slate-50 text-slate-700 transition-all duration-150 shadow-xs"
             title="تحديث"
           >
-            <RefreshCw size={14} strokeWidth={1.7} className={loading ? 'animate-spin text-[#03204E]' : ''} />
+            <RefreshCw size={14} strokeWidth={1.7} className={loading ? 'animate-spin text-[#174F43]' : ''} />
           </button>
         </div>
       </div>
 
       {/* Status Filter Cards with Glass & Glow */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
         {[
           { key: 'all', label: 'الكل', count: statusCounts.all, icon: FileText },
           { key: 'pending', label: 'قيد المراجعة', count: statusCounts.pending, icon: Clock, color: 'text-amber-600' },
-          { key: 'confirmed', label: 'تم التأكيد', count: statusCounts.confirmed, icon: CheckCircle2, color: 'text-blue-600' },
-          { key: 'processing', label: 'جاري التجهيز', count: statusCounts.processing, icon: RefreshCw, color: 'text-indigo-600' },
+          { key: 'confirmed', label: 'تم التأكيد', count: statusCounts.confirmed, icon: CheckCircle2, color: 'text-[#174F43]' },
+          { key: 'processing', label: 'جاري التجهيز', count: statusCounts.processing, icon: RefreshCw, color: 'text-[#FF9D00]' },
           { key: 'shipped', label: 'جاري الشحن', count: statusCounts.shipped, icon: Truck, color: 'text-sky-600' },
-          { key: 'delivered', label: 'تم التوصيل', count: statusCounts.delivered, icon: CheckCircle2, color: 'text-emerald-600' },
+          { key: 'delivered', label: 'تم التوصيل', count: statusCounts.delivered, icon: CheckCircle2, color: 'text-[#174F43]' },
+          { key: 'returned_from_shipping', label: 'مرتجع شحن', count: statusCounts.returned_from_shipping, icon: RotateCcw, color: 'text-amber-800' },
+          { key: 'cancelled', label: 'ملغي', count: statusCounts.cancelled, icon: XCircle, color: 'text-rose-600' },
         ].map((item) => {
           const Icon = item.icon;
           const isActive = selectedStatus === item.key;
@@ -463,7 +732,7 @@ export default function OrdersPage() {
               }}
               className={`p-3.5 rounded-2xl border text-right transition-all duration-200 relative overflow-hidden ${
                 isActive 
-                  ? 'bg-[#03204E] text-white border-[#03204E] shadow-lg shadow-[#03204E]/20 scale-[1.02]' 
+                  ? 'bg-[#174F43] text-white border-[#174F43] shadow-lg shadow-[#174F43]/20 scale-[1.02]' 
                   : 'bg-white/80 backdrop-blur-md border-slate-200/90 text-slate-700 hover:border-slate-300 hover:bg-white shadow-xs'
               }`}
             >
@@ -487,7 +756,7 @@ export default function OrdersPage() {
             placeholder="بحث برقم الطلب، اسم العميل، الهاتف، الإيميل أو الكوبون..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-[#F8FAFC] border border-slate-200 focus:border-[#03204E] rounded-xl px-4 py-2.5 pr-10 text-xs outline-none transition-all focus:bg-white focus:shadow-inner"
+            className="w-full bg-[#F8FAFC] border border-slate-200 focus:border-[#174F43] rounded-xl px-4 py-2.5 pr-10 text-xs outline-none transition-all focus:bg-white focus:shadow-inner"
           />
           <Search size={16} className="text-slate-400 absolute right-3.5 top-3" />
         </div>
@@ -497,7 +766,7 @@ export default function OrdersPage() {
           {selectedStatus !== 'all' && (
             <button
               onClick={() => { setSelectedStatus('all'); setSearchParams({}); }}
-              className="text-[#03204E] font-semibold hover:underline"
+              className="text-[#174F43] font-semibold hover:underline"
             >
               إلغاء الفلترة
             </button>
@@ -508,7 +777,7 @@ export default function OrdersPage() {
       {/* Orders Table */}
       {loading ? (
         <div className="py-20 text-center text-xs text-slate-500 bg-white/60 rounded-2xl border border-slate-200/60">
-          <RefreshCw size={24} className="animate-spin text-[#03204E] mx-auto mb-2" />
+          <RefreshCw size={24} className="animate-spin text-[#174F43] mx-auto mb-2" />
           <span>جاري تحميل قائمة الطلبات والشحنات...</span>
         </div>
       ) : filteredOrders.length === 0 ? (
@@ -540,7 +809,7 @@ export default function OrdersPage() {
                   return (
                     <tr key={order._id} className="hover:bg-slate-50/70 transition-colors">
                       {/* Order Number & Date */}
-                      <td className="p-3.5 font-mono font-bold text-[#03204E]">
+                      <td className="p-3.5 font-mono font-bold text-[#174F43]">
                         <button
                           onClick={() => setSelectedOrder(order)}
                           className="hover:underline flex items-center gap-1 text-xs"
@@ -565,12 +834,12 @@ export default function OrdersPage() {
                       <td className="p-3.5">
                         {order.deliveryMethod === 'metro_pickup' ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
-                            <Train size={12} /> {order.metroPickup?.stationNameAr || order.metroPickup?.stationName || 'محطة مترو'}
+                            <Train size={12} /> {order.metroPickup?.stationNameAr || order.metroPickup?.stationName || (isRTL ? 'محطة مترو' : 'Metro Station')}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700">
                             <Home size={12} className="text-slate-400" />
-                            <span>{order.shippingAddress?.governorate || 'توصيل منزلي'}</span>
+                            <span>{formatGovernorate(order.shippingAddress?.governorate, isRTL) || (isRTL ? 'توصيل منزلي' : 'Home Delivery')}</span>
                           </span>
                         )}
                       </td>
@@ -578,7 +847,7 @@ export default function OrdersPage() {
                       {/* Items */}
                       <td className="p-3.5">
                         <span className="text-xs font-semibold text-slate-800">
-                          {order.items?.length || 0} عطر
+                          {order.items?.length || 0} {isRTL ? 'عطر' : 'Items'}
                         </span>
                         <span className="text-[10px] text-slate-400 block truncate max-w-[150px]">
                           {order.items?.map(i => `${i.productName} (${i.size})`).join(', ')}
@@ -588,13 +857,13 @@ export default function OrdersPage() {
                       {/* Payment */}
                       <td className="p-3.5">
                         <div className="space-y-1">
-                          {renderPaymentMethodBadge(order.paymentMethod, isPaid)}
+                          {renderPaymentMethodBadge(order.paymentMethod, isPaid, isRTL)}
                           {hasProof && (
                             <button
                               onClick={() => setZoomReceiptUrl(order.paymentScreenshot || order.paymentProofUrl)}
                               className="text-[10px] text-indigo-600 hover:underline flex items-center gap-0.5 font-bold"
                             >
-                              <Eye size={10} /> معاينة الإيصال
+                              <Eye size={10} /> {isRTL ? 'معاينة الإيصال' : 'View Proof'}
                             </button>
                           )}
                         </div>
@@ -621,8 +890,26 @@ export default function OrdersPage() {
                           <option value="processing">جاري التجهيز</option>
                           <option value="shipped">جاري الشحن</option>
                           <option value="delivered">تم التوصيل</option>
+                          <option value="returned_from_shipping">مرتجع من الشحن</option>
                           <option value="cancelled">ملغي</option>
                         </select>
+
+                        {order.orderStatus === 'returned_from_shipping' && (
+                          <div className="mt-1 flex flex-col gap-0.5 text-[10px]">
+                            {order.returnDetails?.totalReturnShippingCost > 0 && (
+                              <span className="font-mono text-amber-900 font-bold">
+                                شحن: {order.returnDetails.totalReturnShippingCost} ج.م
+                              </span>
+                            )}
+                            {order.returnDetails?.restockStatus === 'inspected_restocked' ? (
+                              <span className="text-emerald-700 font-semibold">✓ تم استرجاع المخزون</span>
+                            ) : order.returnDetails?.restockStatus === 'inspected_damaged_discarded' ? (
+                              <span className="text-rose-600 font-semibold">✕ تالف / مستبعد</span>
+                            ) : (
+                              <span className="text-amber-700 font-medium">بانتظار الفحص</span>
+                            )}
+                          </div>
+                        )}
                       </td>
 
                       {/* Actions */}
@@ -630,7 +917,7 @@ export default function OrdersPage() {
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             onClick={() => setSelectedOrder(order)}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-[#03204E] hover:text-white text-slate-700 transition-colors"
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-[#174F43] hover:text-white text-slate-700 transition-colors"
                             title="عرض تفاصيل الطلب والفاتورة"
                           >
                             <Eye size={14} />
@@ -667,11 +954,11 @@ export default function OrdersPage() {
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-200/80 bg-[#F8FAFC] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[#03204E]/10 text-[#03204E] flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-[#174F43]/10 text-[#174F43] flex items-center justify-center">
                   <ShoppingBag size={18} />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-[#03204E]">إنشاء طلب جديد يدوياً (Manual Order)</h2>
+                  <h2 className="text-sm font-bold text-[#174F43]">إنشاء طلب جديد يدوياً (Manual Order)</h2>
                   <p className="text-[11px] text-slate-400">تسجيل طلب مخصص، تحديد العطور والأحجام، وحساب الإجمالي</p>
                 </div>
               </div>
@@ -685,7 +972,7 @@ export default function OrdersPage() {
             <form onSubmit={handleSubmitCreateOrder} className="p-6 space-y-5 text-xs overflow-y-auto flex-1">
               {/* Section 1: Customer Information */}
               <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-3">
-                <span className="font-extrabold text-[#03204E] text-xs flex items-center gap-1.5">
+                <span className="font-extrabold text-[#174F43] text-xs flex items-center gap-1.5">
                   <User size={15} />
                   <span>بيانات العميل (Customer Details)</span>
                 </span>
@@ -699,7 +986,7 @@ export default function OrdersPage() {
                       value={createFormData.customerName}
                       onChange={(e) => setCreateFormData({ ...createFormData, customerName: e.target.value })}
                       placeholder="مثال: أحمد محمد"
-                      className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#03204E]"
+                      className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#174F43]"
                     />
                   </div>
 
@@ -711,7 +998,7 @@ export default function OrdersPage() {
                       value={createFormData.customerPhone}
                       onChange={(e) => setCreateFormData({ ...createFormData, customerPhone: e.target.value })}
                       placeholder="010xxxxxxxx"
-                      className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs font-mono outline-none focus:border-[#03204E]"
+                      className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs font-mono outline-none focus:border-[#174F43]"
                     />
                   </div>
 
@@ -722,7 +1009,7 @@ export default function OrdersPage() {
                       value={createFormData.customerPhone2}
                       onChange={(e) => setCreateFormData({ ...createFormData, customerPhone2: e.target.value })}
                       placeholder="011xxxxxxxx"
-                      className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs font-mono outline-none focus:border-[#03204E]"
+                      className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs font-mono outline-none focus:border-[#174F43]"
                     />
                   </div>
 
@@ -733,7 +1020,7 @@ export default function OrdersPage() {
                       value={createFormData.customerEmail}
                       onChange={(e) => setCreateFormData({ ...createFormData, customerEmail: e.target.value })}
                       placeholder="customer@gmail.com"
-                      className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#03204E]"
+                      className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#174F43]"
                     />
                   </div>
                 </div>
@@ -742,20 +1029,24 @@ export default function OrdersPage() {
               {/* Section 2: Delivery & Shipping Details */}
               <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="font-extrabold text-[#03204E] text-xs flex items-center gap-1.5">
+                  <span className="font-extrabold text-[#174F43] text-xs flex items-center gap-1.5">
                     <Truck size={15} />
-                    <span>طريقة التوصيل والعنوان (Shipping & Delivery)</span>
+                    <span>{isRTL ? 'طريقة التوصيل والعنوان' : 'Delivery Method & Address'}</span>
                   </span>
 
                   <div className="flex items-center gap-1 bg-slate-200/70 p-1 rounded-xl">
                     <button
                       type="button"
-                      onClick={() => setCreateFormData({ ...createFormData, deliveryMethod: 'home_delivery', shipping: 50 })}
+                      onClick={() => setCreateFormData({
+                        ...createFormData,
+                        deliveryMethod: 'home_delivery',
+                        shipping: getGovernorateRate(createFormData.shippingAddress.governorate) || 65
+                      })}
                       className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                        createFormData.deliveryMethod === 'home_delivery' ? 'bg-[#03204E] text-white shadow-2xs' : 'text-slate-600'
+                        createFormData.deliveryMethod === 'home_delivery' ? 'bg-[#174F43] text-white shadow-2xs' : 'text-slate-600'
                       }`}
                     >
-                      توصيل منزلي
+                      {isRTL ? 'توصيل منزلي' : 'Home Delivery'}
                     </button>
                     <button
                       type="button"
@@ -764,7 +1055,7 @@ export default function OrdersPage() {
                         createFormData.deliveryMethod === 'metro_pickup' ? 'bg-purple-700 text-white shadow-2xs' : 'text-slate-600'
                       }`}
                     >
-                      استلام محطة مترو
+                      {isRTL ? 'استلام محطة مترو' : 'Metro Pickup'}
                     </button>
                   </div>
                 </div>
@@ -772,17 +1063,24 @@ export default function OrdersPage() {
                 {createFormData.deliveryMethod === 'home_delivery' ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">المحافظة *</label>
+                      <label className="block font-bold text-slate-700 mb-1">{isRTL ? 'المحافظة *' : 'Governorate *'}</label>
                       <select
                         value={createFormData.shippingAddress.governorate}
-                        onChange={(e) => setCreateFormData({
-                          ...createFormData,
-                          shippingAddress: { ...createFormData.shippingAddress, governorate: e.target.value }
-                        })}
-                        className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#03204E]"
+                        onChange={(e) => {
+                          const selGov = e.target.value;
+                          const rate = getGovernorateRate(selGov);
+                          setCreateFormData(prev => ({
+                            ...prev,
+                            shipping: rate,
+                            shippingAddress: { ...prev.shippingAddress, governorate: selGov }
+                          }));
+                        }}
+                        className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#174F43]"
                       >
                         {EGYPT_GOVERNORATES.map(gov => (
-                          <option key={gov} value={gov}>{gov}</option>
+                          <option key={gov.id} value={isRTL ? gov.nameAr : gov.nameEn}>
+                            {isRTL ? `${gov.nameAr} (${gov.defaultRate} ج.م)` : `${gov.nameEn} (${gov.defaultRate} EGP)`}
+                          </option>
                         ))}
                       </select>
                     </div>
@@ -798,7 +1096,7 @@ export default function OrdersPage() {
                           shippingAddress: { ...createFormData.shippingAddress, city: e.target.value }
                         })}
                         placeholder="مدينة نصر، التجمع، المهندسين..."
-                        className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#03204E]"
+                        className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#174F43]"
                       />
                     </div>
 
@@ -813,7 +1111,7 @@ export default function OrdersPage() {
                           shippingAddress: { ...createFormData.shippingAddress, street: e.target.value }
                         })}
                         placeholder="اسم الشارع، رقم العمارة، الدور، الشقة..."
-                        className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#03204E]"
+                        className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#174F43]"
                       />
                     </div>
                   </div>
@@ -830,7 +1128,7 @@ export default function OrdersPage() {
                           metroPickup: { ...createFormData.metroPickup, stationName: e.target.value }
                         })}
                         placeholder="محطة الشهداء، أنور السادات، الأوبرا..."
-                        className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#03204E]"
+                        className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#174F43]"
                       />
                     </div>
 
@@ -844,7 +1142,7 @@ export default function OrdersPage() {
                           metroPickup: { ...createFormData.metroPickup, notes: e.target.value }
                         })}
                         placeholder="مثال: من الساعة 3 إلى 6 مساءً"
-                        className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#03204E]"
+                        className="w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-xs outline-none focus:border-[#174F43]"
                       />
                     </div>
                   </div>
@@ -854,7 +1152,7 @@ export default function OrdersPage() {
               {/* Section 3: Ordered Items Builder */}
               <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-3">
                 <div className="flex items-center justify-between pb-1 border-b border-slate-100">
-                  <span className="font-extrabold text-[#03204E] text-xs flex items-center gap-1.5">
+                  <span className="font-extrabold text-[#174F43] text-xs flex items-center gap-1.5">
                     <Tag size={15} />
                     <span>العطور والمنتجات المطلوبة (Order Items)</span>
                   </span>
@@ -862,7 +1160,7 @@ export default function OrdersPage() {
                   <button
                     type="button"
                     onClick={handleAddItemRow}
-                    className="px-3 py-1 bg-[#03204E] hover:bg-[#02183b] text-white rounded-xl text-[11px] font-bold flex items-center gap-1 transition-colors shadow-2xs"
+                    className="px-3 py-1 bg-[#174F43] hover:bg-[#0F3830] text-white rounded-xl text-[11px] font-bold flex items-center gap-1 transition-colors shadow-2xs"
                   >
                     <Plus size={13} />
                     <span>إضافة عطر آخر</span>
@@ -878,7 +1176,7 @@ export default function OrdersPage() {
                         <select
                           value={item.productId}
                           onChange={(e) => handleItemProductOrSizeChange(idx, 'productId', e.target.value)}
-                          className="w-full h-8 bg-white border border-slate-200 rounded-lg px-2 text-xs font-bold outline-none focus:border-[#03204E]"
+                          className="w-full h-8 bg-white border border-slate-200 rounded-lg px-2 text-xs font-bold outline-none focus:border-[#174F43]"
                           required
                         >
                           <option value="">-- اختر العطر --</option>
@@ -948,51 +1246,51 @@ export default function OrdersPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Payment & Status Settings */}
                 <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-3">
-                  <span className="font-extrabold text-[#03204E] text-xs flex items-center gap-1.5">
+                  <span className="font-extrabold text-[#174F43] text-xs flex items-center gap-1.5">
                     <Wallet size={15} />
                     <span>إعدادات السداد وحالة الطلب</span>
                   </span>
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">طريقة الدفع</label>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">{isRTL ? 'طريقة الدفع' : 'Payment Method'}</label>
                       <select
                         value={createFormData.paymentMethod}
                         onChange={(e) => setCreateFormData({ ...createFormData, paymentMethod: e.target.value })}
                         className="w-full h-8 bg-white border border-slate-200 rounded-lg px-2 text-xs outline-none"
                       >
-                        <option value="cash_on_delivery">عند الاستلام (COD)</option>
-                        <option value="vodafone_cash">فودافون كاش</option>
-                        <option value="instapay">إنستاباي (InstaPay)</option>
-                        <option value="card">بطاقة بنكية / فيزا</option>
+                        <option value="cash_on_delivery">{isRTL ? 'عند الاستلام' : 'Cash on Delivery (COD)'}</option>
+                        <option value="vodafone_cash">{isRTL ? 'فودافون كاش' : 'Vodafone Cash'}</option>
+                        <option value="instapay">{isRTL ? 'إنستاباي' : 'InstaPay'}</option>
+                        <option value="card">{isRTL ? 'بطاقة بنكية / فيزا' : 'Bank Card / Visa'}</option>
                       </select>
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">حالة السداد</label>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">{isRTL ? 'حالة السداد' : 'Payment Status'}</label>
                       <select
                         value={createFormData.paymentStatus}
                         onChange={(e) => setCreateFormData({ ...createFormData, paymentStatus: e.target.value })}
                         className="w-full h-8 bg-white border border-slate-200 rounded-lg px-2 text-xs font-bold outline-none"
                       >
-                        <option value="pending">معلق (Pending)</option>
-                        <option value="paid">مدفوع بالكامل (Paid)</option>
+                        <option value="pending">{isRTL ? 'معلق' : 'Pending'}</option>
+                        <option value="paid">{isRTL ? 'مدفوع بالكامل' : 'Paid in Full'}</option>
                       </select>
                     </div>
                   </div>
 
                   {createFormData.paymentStatus === 'paid' && (
                     <div>
-                      <label className="block text-[11px] font-bold text-emerald-800 mb-1">إيداع المبلغ في الخزينة / الحساب:</label>
+                      <label className="block text-[11px] font-bold text-emerald-800 mb-1">{isRTL ? 'إيداع المبلغ في الخزينة / الحساب:' : 'Deposit to Treasury Account:'}</label>
                       <select
                         value={createFormData.cashAccountId}
                         onChange={(e) => setCreateFormData({ ...createFormData, cashAccountId: e.target.value })}
                         className="w-full h-8 bg-white border border-emerald-300 rounded-lg px-2 text-xs font-bold outline-none text-emerald-900"
                       >
-                        <option value="">-- الحساب الافتراضي --</option>
+                        <option value="">{isRTL ? '-- الحساب الافتراضي --' : '-- Default Account --'}</option>
                         {cashAccounts.map(acc => (
                           <option key={acc._id} value={acc._id}>
-                            {acc.name} ({acc.type}) - رصيد: {acc.balance?.toLocaleString()} ج.م
+                            {acc.name} ({acc.type}) - {isRTL ? 'رصيد:' : 'Balance:'} {acc.balance?.toLocaleString()} {isRTL ? 'ج.م' : 'EGP'}
                           </option>
                         ))}
                       </select>
@@ -1000,15 +1298,15 @@ export default function OrdersPage() {
                   )}
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">حالة الطلب الافتتاحية</label>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">{isRTL ? 'حالة الطلب الافتتاحية' : 'Initial Order Status'}</label>
                     <select
                       value={createFormData.orderStatus}
                       onChange={(e) => setCreateFormData({ ...createFormData, orderStatus: e.target.value })}
                       className="w-full h-8 bg-white border border-slate-200 rounded-lg px-2 text-xs font-bold outline-none"
                     >
-                      <option value="confirmed">تم التأكيد (Confirmed)</option>
-                      <option value="pending">قيد المراجعة (Pending)</option>
-                      <option value="processing">جاري التجهيز (Processing)</option>
+                      <option value="confirmed">{isRTL ? 'تم التأكيد' : 'Confirmed'}</option>
+                      <option value="pending">{isRTL ? 'قيد المراجعة' : 'Pending Review'}</option>
+                      <option value="processing">{isRTL ? 'جاري التجهيز' : 'Processing'}</option>
                     </select>
                   </div>
                 </div>
@@ -1016,42 +1314,44 @@ export default function OrdersPage() {
                 {/* Financial Summary Calculation */}
                 <div className="p-4 bg-[#F8FAFC] border border-slate-200 rounded-2xl flex flex-col justify-between space-y-3">
                   <div className="space-y-2">
-                    <span className="font-extrabold text-[#03204E] text-xs block pb-1 border-b border-slate-200">
-                      ملخص الحساب والفاتورة
+                    <span className="font-extrabold text-[#174F43] text-xs block pb-1 border-b border-slate-200">
+                      {isRTL ? 'ملخص الحساب والفاتورة' : 'Order Financial Summary'}
                     </span>
 
                     <div className="flex items-center justify-between text-xs text-slate-600">
-                      <span>مجموع المنتجات:</span>
-                      <strong className="font-mono">{createOrderSubtotal.toLocaleString()} ج.م</strong>
+                      <span>{isRTL ? 'مجموع المنتجات:' : 'Products Subtotal:'}</span>
+                      <strong className="font-mono">{createOrderSubtotal.toLocaleString()} {isRTL ? 'ج.م' : 'EGP'}</strong>
                     </div>
 
                     <div className="flex items-center justify-between gap-2 text-xs">
-                      <span>مصاريف الشحن (ج.م):</span>
+                      <span>{isRTL ? 'مصاريف الشحن (ج.م):' : 'Shipping Fee (EGP):'}</span>
                       <input
                         type="number"
                         min="0"
+                        step="1"
                         value={createFormData.shipping}
-                        onChange={(e) => setCreateFormData({ ...createFormData, shipping: Number(e.target.value) })}
+                        onChange={(e) => setCreateFormData({ ...createFormData, shipping: Math.max(0, Math.round(Number(e.target.value) || 0)) })}
                         className="w-20 h-7 bg-white border border-slate-200 rounded-lg px-2 text-xs font-mono font-bold text-center outline-none"
                       />
                     </div>
 
                     <div className="flex items-center justify-between gap-2 text-xs">
-                      <span className="text-emerald-700">خصم إضافي (ج.م):</span>
+                      <span className="text-emerald-700">{isRTL ? 'خصم إضافي (ج.م):' : 'Discount (EGP):'}</span>
                       <input
                         type="number"
                         min="0"
+                        step="1"
                         value={createFormData.discount}
-                        onChange={(e) => setCreateFormData({ ...createFormData, discount: Number(e.target.value) })}
+                        onChange={(e) => setCreateFormData({ ...createFormData, discount: Math.max(0, Math.round(Number(e.target.value) || 0)) })}
                         className="w-20 h-7 bg-white border border-slate-200 rounded-lg px-2 text-xs font-mono font-bold text-center outline-none text-emerald-700"
                       />
                     </div>
                   </div>
 
                   <div className="p-3 bg-white rounded-xl border border-slate-200/90 flex items-center justify-between">
-                    <span className="font-extrabold text-xs text-[#03204E]">المبلغ الإجمالي النهائي:</span>
-                    <strong className="text-base font-black text-[#03204E] font-mono">
-                      {createOrderTotal.toLocaleString()} ج.م
+                    <span className="font-extrabold text-xs text-[#174F43]">{isRTL ? 'المبلغ الإجمالي النهائي:' : 'Total Amount:'}</span>
+                    <strong className="text-base font-black text-[#174F43] font-mono">
+                      {createOrderTotal.toLocaleString()} {isRTL ? 'ج.م' : 'EGP'}
                     </strong>
                   </div>
                 </div>
@@ -1069,7 +1369,7 @@ export default function OrdersPage() {
                 <button
                   type="submit"
                   disabled={creatingOrder}
-                  className="px-6 py-2 bg-[#03204E] text-white rounded-xl hover:bg-[#02183b] h-10 font-bold disabled:opacity-50 shadow-sm"
+                  className="px-6 py-2 bg-[#174F43] text-white rounded-xl hover:bg-[#0F3830] h-10 font-bold disabled:opacity-50 shadow-sm"
                 >
                   {creatingOrder ? 'جاري إنشاء الطلب...' : 'تأكيد وحفظ الطلب'}
                 </button>
@@ -1079,76 +1379,302 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {/* ORDER DETAILS MODAL */}
+      {/* ORDER DETAILS MODAL (PREMIUM ATELIER REDESIGN) */}
       {selectedOrder && !printMode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 rtl bg-black/50 backdrop-blur-xs">
-          <div className="relative w-full max-w-2xl bg-white rounded-3xl border border-slate-200 shadow-2xl z-10 max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 rtl bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-3xl bg-white rounded-3xl border border-slate-200/90 shadow-2xl z-10 max-h-[92vh] flex flex-col overflow-hidden font-['Cairo',sans-serif]">
+            
             {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-200/80 bg-[#F8FAFC] flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[#03204E]/10 text-[#03204E] flex items-center justify-center">
-                  <Truck size={18} />
+            <div className="px-6 py-4 border-b border-slate-200/80 bg-[#F8FAFC] flex flex-wrap items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#174F43] to-[#174F43] text-white flex items-center justify-center shadow-sm">
+                  <ShoppingBag size={20} strokeWidth={1.7} />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-[#03204E]">طلب #{selectedOrder.orderNumber}</h2>
-                  <p className="text-[11px] text-slate-400">
-                    تاريخ الطلب: {new Date(selectedOrder.createdAt).toLocaleString('ar-EG')}
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-extrabold text-[#174F43] font-mono tracking-tight">
+                      طلب #{selectedOrder.orderNumber}
+                    </h2>
+                    {/* Status Badge */}
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${statusConfig[selectedOrder.orderStatus]?.bg || 'bg-slate-100'} ${statusConfig[selectedOrder.orderStatus]?.color || 'text-slate-700'} ${statusConfig[selectedOrder.orderStatus]?.border || 'border-slate-200'}`}>
+                      {statusConfig[selectedOrder.orderStatus]?.[isRTL ? 'labelAr' : 'labelEn'] || selectedOrder.orderStatus}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium flex items-center gap-1.5 mt-0.5">
+                    <Clock size={12} className="text-slate-400" />
+                    <span>{isRTL ? 'تاريخ ووقت الطلب:' : 'Order Date & Time:'}</span>
+                    <span className="font-sans font-bold text-slate-700">
+                      {new Date(selectedOrder.createdAt).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </span>
                   </p>
                 </div>
               </div>
 
+              {/* Action Buttons in Header */}
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handlePrint('shipping')}
                   className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
-                  title="طباعة بوليصة شحن الشحنة"
+                  title={isRTL ? 'طباعة بوليصة شحن الشحنة' : 'Print Shipping Slip'}
                 >
-                  <Truck size={13} />
-                  <span>بوليصة الشحن</span>
+                  <Truck size={14} className="text-[#174F43]" />
+                  <span>{isRTL ? 'بوليصة الشحن' : 'Shipping Slip'}</span>
                 </button>
 
                 <button
                   onClick={() => handlePrint('invoice')}
-                  className="px-3 py-1.5 rounded-xl bg-[#03204E] hover:bg-[#02183b] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
-                  title="طباعة فاتورة حرارية 10×15 سم مع QR Code"
+                  className="px-3.5 py-1.5 rounded-xl bg-[#174F43] hover:bg-[#0F3830] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
+                  title={isRTL ? 'طباعة فاتورة حرارية 10×15 سم مع QR Code' : 'Print Thermal Invoice 10x15cm'}
                 >
-                  <Printer size={13} />
-                  <span>فاتورة 10×15</span>
+                  <Printer size={14} />
+                  <span>{isRTL ? 'فاتورة 10×15' : 'Invoice 10x15'}</span>
                 </button>
 
-                <button onClick={() => setSelectedOrder(null)} className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg">
+                <button 
+                  onClick={() => setSelectedOrder(null)} 
+                  className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
+                >
                   <X size={18} />
                 </button>
               </div>
             </div>
 
-            {/* Modal Body */}
+            {/* Modal Scrollable Body */}
             <div className="p-6 space-y-5 text-xs overflow-y-auto flex-1">
-              {/* Payment Verification Banner if pending */}
-              {selectedOrder.paymentStatus !== 'paid' && (
-                <div className="p-4 rounded-2xl border border-amber-200 bg-amber-50/70 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-amber-900 font-bold">
-                      <AlertCircle size={16} className="text-amber-600" />
-                      <span>التحقق من الدفع وتأكيد السداد</span>
+              
+              {/* Order Status Control Strip */}
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-[#174F43] text-xs">{isRTL ? 'تحديث مرحلة الطلب:' : 'Update Order Status:'}</span>
+                  <select
+                    value={selectedOrder.orderStatus}
+                    onChange={(e) => handleStatusChange(selectedOrder._id, e.target.value)}
+                    disabled={updatingStatus}
+                    className="h-8 bg-white border border-slate-300 rounded-xl px-2.5 text-xs font-bold text-slate-800 outline-none focus:border-[#174F43] shadow-2xs"
+                  >
+                    <option value="pending">{isRTL ? 'قيد الانتظار والمراجعة' : 'Pending Review'}</option>
+                    <option value="confirmed">{isRTL ? 'تم التأكيد من الأتيليه' : 'Confirmed by Atelier'}</option>
+                    <option value="processing">{isRTL ? 'جاري التجهيز والتعبئة' : 'Processing & Packaging'}</option>
+                    <option value="shipped">{isRTL ? 'تم التسليم لمندوب الشحن' : 'Shipped / Dispatched'}</option>
+                    <option value="delivered">{isRTL ? 'تم التوصيل للعميل بنجاح' : 'Delivered Successfully'}</option>
+                    <option value="returned_from_shipping">{isRTL ? 'مرتجع من الشحن' : 'Returned from Shipping'}</option>
+                    <option value="cancelled">{isRTL ? 'ملغي' : 'Cancelled'}</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500 text-[11px]">حالة السداد:</span>
+                  {selectedOrder.paymentStatus === 'paid' ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      <CheckCircle2 size={12} /> تم الدفع بنجاح
+                    </span>
+                  ) : selectedOrder.paymentStatus === 'refunded' ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                      <Undo2 size={12} /> مسترد للعميل
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                      <Clock size={12} /> معلق / بانتظار التأكيد
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* RETURNED FROM SHIPPING MANAGEMENT CARD */}
+              {(selectedOrder.orderStatus === 'returned_from_shipping' || selectedOrder.returnDetails?.isReturned) && (
+                <div className="p-4 rounded-2xl border border-amber-300 bg-amber-50/70 space-y-4 shadow-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-amber-200">
+                    <div className="flex items-center gap-2 text-amber-950 font-bold text-xs">
+                      <RotateCcw size={16} className="text-amber-800" />
+                      <span>إدارة المرتجع ومصاريف الشحن والفحص</span>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleOpenReturnModal(selectedOrder)}
+                      className="px-3 py-1 bg-white hover:bg-amber-100 text-amber-900 font-bold rounded-xl border border-amber-300 shadow-2xs text-[11px] transition-all flex items-center gap-1.5"
+                    >
+                      <span>تعديل مصاريف الشحن</span>
+                    </button>
+                  </div>
+
+                  {/* 1. Shipping Charges Breakdown */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 bg-white p-3 rounded-xl border border-amber-200 text-slate-800">
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-medium block">شحن ذهاباً للعميل:</span>
+                      <strong className="text-xs font-mono text-slate-900">
+                        {selectedOrder.returnDetails?.outboundShippingFee ?? 0} ج.م
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-medium block">شحن عودة / إياب:</span>
+                      <strong className="text-xs font-mono text-slate-900">
+                        {selectedOrder.returnDetails?.returnShippingFee ?? 0} ج.م
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-amber-800 font-semibold block">إجمالي تكلفة الشحن على الشركة:</span>
+                      <strong className="text-xs font-mono text-amber-900 font-black">
+                        {selectedOrder.returnDetails?.totalReturnShippingCost ?? ((selectedOrder.returnDetails?.outboundShippingFee || 0) + (selectedOrder.returnDetails?.returnShippingFee || 0))} ج.م
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* Return Reason & Finance Expense Indicator */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-700 bg-amber-100/60 p-2.5 rounded-xl border border-amber-200/90">
+                    <div>
+                      <span className="font-semibold text-amber-950">سبب الارتجاع: </span>
+                      <span>{selectedOrder.returnDetails?.returnReason || 'رفض الاستلام / تعذر التوصيل'}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1 font-semibold text-emerald-800 bg-white/90 px-2 py-0.5 rounded-lg border border-emerald-300">
+                      <Check size={12} className="text-emerald-700" />
+                      <span>مسجل كمصروف شحن ونقل رسمي في المالية (يُخصم من صافي الربح)</span>
+                    </div>
+                  </div>
+
+                  {/* 2. Physical Inspection & Inventory Restocking Section */}
+                  <div className="p-3 bg-white rounded-xl border border-amber-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 text-[11px] flex items-center gap-1.5">
+                        <Archive size={14} className="text-[#174F43]" />
+                        <span>حالة الفحص الفعلي واسترجاع المخزون:</span>
+                      </span>
+
+                      {selectedOrder.returnDetails?.restockStatus === 'inspected_restocked' ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          <CheckCircle2 size={12} /> تم الفحص واسترجاع السائل للمخزون بنجاح
+                        </span>
+                      ) : selectedOrder.returnDetails?.restockStatus === 'inspected_damaged_discarded' ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
+                          <XCircle size={12} /> تم الفحص: منتجات تالفة وتم استبعادها (لم تُضف للمخزون)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                          <Clock size={12} /> قيد انتظار الفحص الفعلي والمعاينة
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-[10px] text-slate-500 leading-relaxed font-light">
+                      * التزاماً بقواعد الجودة، لا يتم استرجاع السائل تلقائياً لمجرد تغيير حالة الطلب، بل بعد استلام المنتجات وفحصها والتأكد من أنها مغلقة تماماً وسليمة.
+                    </p>
+
+                    {selectedOrder.returnDetails?.restockStatus !== 'inspected_restocked' && selectedOrder.returnDetails?.restockStatus !== 'inspected_damaged_discarded' && (
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmRestock(selectedOrder, 'reusable')}
+                          disabled={inspectingRestock}
+                          className="px-3.5 py-1.5 bg-[#174F43] hover:bg-[#0F3830] text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition-all disabled:opacity-50"
+                        >
+                          <Check size={14} />
+                          <span>تأكيد فحص واسترجاع العطور للمخزون</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmRestock(selectedOrder, 'damaged')}
+                          disabled={inspectingRestock}
+                          className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold rounded-xl text-xs border border-rose-200 transition-all disabled:opacity-50"
+                        >
+                          <X size={14} />
+                          <span>تسجيل تلف الشحنة (غير صالحة)</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {selectedOrder.returnDetails?.inspectionNotes && (
+                      <p className="text-[11px] text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-200 mt-1">
+                        <strong>ملاحظات الفحص:</strong> {selectedOrder.returnDetails.inspectionNotes}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* 3. Customer Refund Section if Payment Was Collected */}
+                  {selectedOrder.paymentStatus === 'paid' && (
+                    <div className="p-3 bg-[#174F43]/10 rounded-xl border border-[#174F43]/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div>
+                        <span className="font-bold text-[#174F43] text-xs block">
+                          تم تحصيل قيمة الطلب مسبقاً ({selectedOrder.total?.toLocaleString()} ج.م)
+                        </span>
+                        <span className="text-[10px] text-slate-600">
+                          نظراً لارتجاع الشحنة، يمكنك تسجيل استرداد المبلغ وخصمه من الخزينة.
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenRefundModal(selectedOrder)}
+                        className="px-3.5 py-1.5 bg-[#174F43] hover:bg-[#0F3830] text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition-all shrink-0"
+                      >
+                        <Undo2 size={14} className="text-[#FF9D00]" />
+                        <span>معالجة استرداد المبلغ للعميل</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {selectedOrder.paymentStatus === 'refunded' && (
+                    <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between text-xs text-emerald-900 font-medium">
+                      <span>✓ تم استرداد مبلغ {selectedOrder.returnDetails?.refundAmount || selectedOrder.total} ج.م للعميل بنجاح.</span>
+                      {selectedOrder.returnDetails?.refundNotes && (
+                        <span className="text-[10px] text-emerald-700 font-normal">({selectedOrder.returnDetails.refundNotes})</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Payment Verification Card */}
+              {selectedOrder.paymentStatus !== 'paid' ? (
+                <div className="p-4 rounded-2xl border border-amber-200/90 bg-amber-50/60 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-amber-950 font-extrabold text-xs">
+                      <AlertCircle size={16} className="text-amber-600" />
+                      <span>تأكيد السداد والتحقق من إشعار الدفع اليدوي</span>
+                    </div>
+
                     {(selectedOrder.paymentScreenshot || selectedOrder.paymentProofUrl) && (
                       <button
+                        type="button"
                         onClick={() => setZoomReceiptUrl(selectedOrder.paymentScreenshot || selectedOrder.paymentProofUrl)}
-                        className="text-xs text-indigo-700 font-bold hover:underline flex items-center gap-1"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-50 text-indigo-700 font-bold rounded-xl border border-indigo-200 shadow-2xs text-[11px] transition-all"
                       >
-                        <ZoomIn size={14} /> معاينة إشعار التحويل
+                        <ZoomIn size={14} />
+                        <span>معاينة وتكبير إشعار التحويل</span>
                       </button>
                     )}
                   </div>
 
-                  <div className="flex flex-col sm:flex-row gap-2 items-center">
+                  {/* Payment Proof Preview if present */}
+                  {(selectedOrder.paymentScreenshot || selectedOrder.paymentProofUrl) && (
+                    <div className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-amber-200">
+                      <img
+                        src={selectedOrder.paymentScreenshot || selectedOrder.paymentProofUrl}
+                        alt="إيصال التحويل"
+                        onClick={() => setZoomReceiptUrl(selectedOrder.paymentScreenshot || selectedOrder.paymentProofUrl)}
+                        className="w-14 h-14 object-cover rounded-lg border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity shrink-0"
+                      />
+                      <div className="flex-1 space-y-0.5 text-[11px]">
+                        <p className="font-bold text-slate-800">مرفق إشعار تحويل من العميل</p>
+                        {selectedOrder.paymentSenderPhone && (
+                          <p className="text-slate-600">رقم المحفظة المحوّل منها: <strong className="font-mono text-[#174F43]">{selectedOrder.paymentSenderPhone}</strong></p>
+                        )}
+                        <p className="text-indigo-600 font-medium cursor-pointer hover:underline" onClick={() => setZoomReceiptUrl(selectedOrder.paymentScreenshot || selectedOrder.paymentProofUrl)}>
+                          اضغط لتكبير الصورة وفحص تفاصيل العملية
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Verify Payment Action Bar */}
+                  <div className="flex flex-col sm:flex-row gap-2 items-center pt-1">
                     <select
                       value={selectedCashAccountId}
                       onChange={(e) => setSelectedCashAccountId(e.target.value)}
-                      className="w-full sm:flex-1 h-9 bg-white border border-slate-300 rounded-xl px-3 text-xs outline-none focus:border-[#03204E]"
+                      className="w-full sm:flex-1 h-9 bg-white border border-amber-300 rounded-xl px-3 text-xs outline-none focus:border-[#174F43] font-medium"
                     >
-                      <option value="">-- اختر خزينة / حساب التحويل المالي --</option>
+                      <option value="">-- اختر خزينة / حساب التحويل المالي للإيداع --</option>
                       {cashAccounts.map(acc => (
                         <option key={acc._id} value={acc._id}>
                           {acc.name} ({acc.type}) - رصيد: {acc.balance?.toLocaleString()} ج.م
@@ -1166,86 +1692,686 @@ export default function OrdersPage() {
                     </button>
                   </div>
                 </div>
+              ) : (
+                <div className="p-3.5 rounded-2xl border border-emerald-200 bg-emerald-50/70 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-emerald-900 font-extrabold text-xs">
+                    <CheckCircle2 size={17} className="text-emerald-700" />
+                    <span>تم التحقق من الدفع وتأكيد السداد الكامل ({selectedOrder.total?.toLocaleString()} ج.م)</span>
+                  </div>
+                  {(selectedOrder.paymentScreenshot || selectedOrder.paymentProofUrl) && (
+                    <button
+                      type="button"
+                      onClick={() => setZoomReceiptUrl(selectedOrder.paymentScreenshot || selectedOrder.paymentProofUrl)}
+                      className="text-xs text-emerald-800 font-bold hover:underline flex items-center gap-1"
+                    >
+                      <Eye size={13} /> عرض إشعار السداد
+                    </button>
+                  )}
+                </div>
               )}
 
-              {/* Customer & Address Details */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                  <span className="font-extrabold text-[#03204E] text-xs block">بيانات العميل</span>
-                  <div className="space-y-1 text-slate-700">
-                    <p><strong>الاسم:</strong> {selectedOrder.customer?.name || 'عميل ÉLAN'}</p>
-                    <p className="font-mono"><strong>الهاتف 1:</strong> {selectedOrder.customerPhone || selectedOrder.customer?.phone}</p>
-                    {selectedOrder.customerPhone2 && <p className="font-mono"><strong>الهاتف 2:</strong> {selectedOrder.customerPhone2}</p>}
-                    {selectedOrder.customerEmail && <p><strong>الإيميل:</strong> {selectedOrder.customerEmail}</p>}
+              {/* Customer & Delivery Information Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                
+                {/* Customer Card */}
+                <div className="p-4 bg-slate-50/90 border border-slate-200/90 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+                    <span className="font-extrabold text-[#174F43] text-xs flex items-center gap-1.5">
+                      <User size={15} />
+                      <span>بيانات العميل (Customer Profile)</span>
+                    </span>
+                    {selectedOrder.customer?.isFirst100 && (
+                      <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 font-bold px-2 py-0.5 rounded-full">
+                        نادي الـ 100 الأوائل ⭐
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-2 text-slate-700 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">الاسم الكامل:</span>
+                      <strong className="text-slate-900 font-bold text-sm">
+                        {selectedOrder.customer?.name || 'عميل M20'}
+                      </strong>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">رقم الموبايل الأساسي:</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-slate-900 dir-ltr">
+                          {selectedOrder.customerPhone || selectedOrder.customer?.phone}
+                        </span>
+                        <a 
+                          href={`tel:${selectedOrder.customerPhone || selectedOrder.customer?.phone}`} 
+                          className="p-1 rounded-md bg-white border border-slate-200 text-slate-600 hover:text-[#174F43]"
+                          title="اتصال"
+                        >
+                          <Phone size={12} />
+                        </a>
+                        <a 
+                          href={`https://wa.me/20${(selectedOrder.customerPhone || selectedOrder.customer?.phone || '').replace(/^0/, '')}`} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="p-1 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                          title="واتساب"
+                        >
+                          <MessageSquare size={12} />
+                        </a>
+                      </div>
+                    </div>
+
+                    {selectedOrder.customerPhone2 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">رقم موبايل ثاني:</span>
+                        <span className="font-mono font-bold text-slate-800 dir-ltr">{selectedOrder.customerPhone2}</span>
+                      </div>
+                    )}
+
+                    {selectedOrder.customerEmail && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">البريد الإلكتروني:</span>
+                        <span className="font-sans text-slate-800 font-medium">{selectedOrder.customerEmail}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                      <span className="text-slate-500">طريقة الدفع:</span>
+                      {renderPaymentMethodBadge(selectedOrder.paymentMethod, selectedOrder.paymentStatus === 'paid')}
+                    </div>
                   </div>
                 </div>
 
-                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                  <span className="font-extrabold text-[#03204E] text-xs block">تفاصيل التوصيل والعنوان</span>
-                  <div className="space-y-1 text-slate-700">
+                {/* Delivery & Shipping Card */}
+                <div className="p-4 bg-slate-50/90 border border-slate-200/90 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+                    <span className="font-extrabold text-[#174F43] text-xs flex items-center gap-1.5">
+                      {selectedOrder.deliveryMethod === 'metro_pickup' ? <Train size={15} /> : <Home size={15} />}
+                      <span>الشحن والتوصيل (Fulfillment)</span>
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      selectedOrder.deliveryMethod === 'metro_pickup'
+                        ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                        : 'bg-blue-100 text-blue-800 border border-blue-200'
+                    }`}>
+                      {selectedOrder.deliveryMethod === 'metro_pickup' ? (isRTL ? 'استلام محطة مترو' : 'Metro Pickup') : (isRTL ? 'توصيل للمنزل' : 'Home Delivery')}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 text-slate-700 text-xs">
                     {selectedOrder.deliveryMethod === 'metro_pickup' ? (
-                      <p><strong>محطة المترو:</strong> {selectedOrder.metroPickup?.stationNameAr || selectedOrder.metroPickup?.stationName}</p>
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500">{isRTL ? 'محطة المترو:' : 'Metro Station:'}</span>
+                          <strong className="text-[#174F43] font-bold">
+                            {selectedOrder.metroPickup?.stationNameAr || selectedOrder.metroPickup?.stationName || (isRTL ? 'محطة مترو' : 'Metro Station')}
+                          </strong>
+                        </div>
+                        {selectedOrder.metroPickup?.line && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500">{isRTL ? 'الخط:' : 'Line:'}</span>
+                            <span className="text-slate-800 font-medium">{selectedOrder.metroPickup?.line}</span>
+                          </div>
+                        )}
+                        <div className="p-2 bg-white rounded-xl border border-slate-200 text-slate-600 text-[11px] leading-relaxed">
+                          {selectedOrder.metroPickup?.pickupNote || (isRTL ? 'سيتم التواصل مع العميل لتحديد موعد ومكان المقابلة في المحطة.' : 'Customer will be contacted for meeting point.')}
+                        </div>
+                      </>
                     ) : (
                       <>
-                        <p><strong>المحافظة:</strong> {selectedOrder.shippingAddress?.governorate} - {selectedOrder.shippingAddress?.city}</p>
-                        <p><strong>الشارع:</strong> {selectedOrder.shippingAddress?.street} (مبنى: {selectedOrder.shippingAddress?.buildingNumber || '-'})</p>
-                        {selectedOrder.shippingAddress?.deliveryNotes && <p className="text-slate-500"><strong>ملاحظات:</strong> {selectedOrder.shippingAddress?.deliveryNotes}</p>}
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500">{isRTL ? 'المحافظة والمدينة:' : 'Governorate & City:'}</span>
+                          <strong className="text-slate-900 font-bold">
+                            {formatGovernorate(selectedOrder.shippingAddress?.governorate, isRTL)} • {selectedOrder.shippingAddress?.city || '-'}
+                          </strong>
+                        </div>
+
+                        <div>
+                          <span className="text-slate-500 block mb-0.5">{isRTL ? 'العنوان بالتفصيل:' : 'Full Address:'}</span>
+                          <p className="text-slate-800 font-semibold bg-white p-2 rounded-xl border border-slate-200 leading-snug">
+                            {selectedOrder.shippingAddress?.street}
+                            {selectedOrder.shippingAddress?.buildingNumber && ` (${isRTL ? 'مبنى' : 'Bldg'} ${selectedOrder.shippingAddress.buildingNumber})`}
+                            {selectedOrder.shippingAddress?.floor && ` - ${isRTL ? 'دور' : 'Fl.'} ${selectedOrder.shippingAddress.floor}`}
+                            {selectedOrder.shippingAddress?.apartment && ` - ${isRTL ? 'شقة' : 'Apt.'} ${selectedOrder.shippingAddress.apartment}`}
+                          </p>
+                        </div>
+
+                        {selectedOrder.shippingAddress?.deliveryNotes && (
+                          <div>
+                            <span className="text-slate-400 text-[10px] block">{isRTL ? 'ملاحظات / علامات مميزة:' : 'Delivery Notes:'}</span>
+                            <p className="text-slate-600 text-[11px] italic bg-slate-100 p-1.5 rounded-lg border border-slate-200/80">
+                              {selectedOrder.shippingAddress.deliveryNotes}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Carrier & Outbound Cost Configuration */}
+                        <div className="pt-2.5 border-t border-slate-200/80 mt-2 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500 text-[11px] font-medium">
+                              {isRTL ? 'رسوم الشحن على العميل:' : 'Customer Shipping Fee:'}
+                            </span>
+                            <span className="font-mono font-bold text-slate-900">
+                              {(selectedOrder.shippingFeeCharged ?? selectedOrder.shipping ?? 0) === 0 ? (
+                                <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 text-[11px]">
+                                  <Check size={11} /> {isRTL ? '0 ج.م (شحن مجاني)' : '0 EGP (Free Shipping)'}
+                                </span>
+                              ) : (
+                                `${Math.round(selectedOrder.shippingFeeCharged ?? selectedOrder.shipping ?? 0)} ${isRTL ? 'ج.م' : 'EGP'}`
+                              )}
+                            </span>
+                          </div>
+
+                          {selectedOrder.shippingDiscount > 0 && (
+                            <div className="flex items-center justify-between text-[11px] text-emerald-700 font-semibold">
+                              <span>{isRTL ? 'خصم الشحن المطبق:' : 'Shipping Promo Discount:'}</span>
+                              <span className="font-mono">-{Math.round(selectedOrder.shippingDiscount)} {isRTL ? 'ج.م' : 'EGP'}</span>
+                            </div>
+                          )}
+
+                          <div className="p-2.5 bg-white rounded-xl border border-slate-200 space-y-1.5 shadow-2xs">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <Truck size={13} className="text-[#174F43]" />
+                                <span className="text-slate-800 font-bold text-[11px]">
+                                  {isRTL ? 'تكلفة الشحن الفعلية للشركة (مندوب الشحن):' : 'Carrier Cost Paid by M20:'}
+                                </span>
+                              </div>
+                              {!editingCarrierCost && (
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingCarrierCost(true)}
+                                  className="text-[10px] text-[#174F43] font-bold hover:underline"
+                                >
+                                  {isRTL ? 'تعديل التكلفة' : 'Edit Cost'}
+                                </button>
+                              )}
+                            </div>
+
+                            {editingCarrierCost ? (
+                              <div className="flex items-center gap-2 pt-1">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  value={carrierCostInput}
+                                  onChange={(e) => setCarrierCostInput(e.target.value)}
+                                  className="w-24 h-8 bg-slate-50 border border-slate-300 rounded-lg px-2 text-xs font-mono font-bold text-center outline-none focus:border-[#174F43]"
+                                  placeholder="65"
+                                />
+                                <span className="text-xs text-slate-500 font-mono">{isRTL ? 'ج.م' : 'EGP'}</span>
+                                <button
+                                  type="button"
+                                  onClick={handleSaveCarrierCost}
+                                  disabled={savingCarrierCost}
+                                  className="px-3 py-1.5 bg-[#174F43] text-white rounded-lg text-xs font-bold hover:bg-[#0F3830] transition-colors disabled:opacity-50 flex items-center gap-1"
+                                >
+                                  {savingCarrierCost ? <RefreshCw size={12} className="animate-spin" /> : <Save size={12} />}
+                                  <span>{isRTL ? 'حفظ' : 'Save'}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCarrierCostInput(Math.round(Number(selectedOrder.actualOutboundShippingCost ?? selectedOrder.realShippingCost ?? getGovernorateRate(selectedOrder.shippingAddress?.governorate) ?? 65)));
+                                    setEditingCarrierCost(false);
+                                  }}
+                                  className="px-2.5 py-1.5 border border-slate-200 text-slate-600 rounded-lg text-xs hover:bg-slate-50"
+                                >
+                                  {isRTL ? 'إلغاء' : 'Cancel'}
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="font-mono font-black text-slate-900 text-sm">
+                                  {Math.round(Number(selectedOrder.actualOutboundShippingCost ?? selectedOrder.realShippingCost ?? getGovernorateRate(selectedOrder.shippingAddress?.governorate) ?? 65))} {isRTL ? 'ج.م' : 'EGP'}
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                  {isRTL ? '(يُقيد كمصروف شحن ونقل في الأرباح والخسائر)' : '(Recorded under Shipping Expenses in P&L)'}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </>
                     )}
                   </div>
                 </div>
+
               </div>
 
-              {/* Order Items Table */}
-              <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                <table className="w-full text-right text-xs">
-                  <thead className="bg-[#F8FAFC] border-b border-slate-200 font-bold text-slate-600">
-                    <tr>
-                      <th className="p-3">العطر / المنتج</th>
-                      <th className="p-3">الحجم</th>
-                      <th className="p-3">السعر</th>
-                      <th className="p-3 text-center">الكمية</th>
-                      <th className="p-3 text-left">الإجمالي</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {(selectedOrder.items || []).map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="p-3 font-bold text-slate-900">{item.productName}</td>
-                        <td className="p-3 font-mono">{item.size}</td>
-                        <td className="p-3 font-mono">{item.price?.toLocaleString()} ج.م</td>
-                        <td className="p-3 font-mono text-center font-bold">{item.quantity}</td>
-                        <td className="p-3 font-mono font-bold text-left text-slate-900">
-                          {(item.price * item.quantity).toLocaleString()} ج.م
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Financial Totals */}
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">المجموع الفرعي:</span>
-                  <span className="font-mono font-bold">{selectedOrder.subtotal?.toLocaleString()} ج.م</span>
+              {/* Order Products & Items Table */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-[#174F43] text-xs flex items-center gap-1.5">
+                    <ShoppingBag size={15} />
+                    <span>منتجات الطلب ({selectedOrder.items?.length || 0} عطور)</span>
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-medium">الأسعار تشمل الضرائب والمصنعية</span>
                 </div>
+
+                <div className="border border-slate-200/90 rounded-2xl overflow-hidden shadow-2xs">
+                  <table className="w-full text-right text-xs">
+                    <thead className="bg-[#F8FAFC] border-b border-slate-200 font-bold text-slate-600">
+                      <tr>
+                        <th className="p-3">العطر / المنتج</th>
+                        <th className="p-3 text-center">الحجم</th>
+                        <th className="p-3 text-center">سعر الوحدة</th>
+                        <th className="p-3 text-center">الكمية</th>
+                        <th className="p-3 text-left">الإجمالي</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {(selectedOrder.items || []).map((item, idx) => {
+                        const imgSrc = getItemImage(item);
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="p-3">
+                              <div className="flex items-center gap-3">
+                                <img
+                                  src={imgSrc}
+                                  alt={item.productName}
+                                  className="w-12 h-12 object-contain rounded-xl border border-slate-200 bg-white p-1 shrink-0 shadow-2xs"
+                                  onError={(e) => { e.target.onerror = null; e.target.src = '/img/product.png'; }}
+                                />
+                                <div>
+                                  <h4 className="font-bold text-slate-900 text-xs sm:text-sm">{item.productName}</h4>
+                                  <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                                    SKU: {item.variantSKU || '-'}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-3 text-center">
+                              <span className="inline-block px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-800 font-bold text-[11px] font-mono">
+                                {item.size}
+                              </span>
+                            </td>
+                            <td className="p-3 text-center font-mono font-semibold text-slate-800">
+                              {item.price?.toLocaleString()} ج.م
+                            </td>
+                            <td className="p-3 text-center">
+                              <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 font-bold font-mono text-slate-900">
+                                {item.quantity}
+                              </span>
+                            </td>
+                            <td className="p-3 text-left font-mono font-bold text-[#174F43] text-xs sm:text-sm">
+                              {(item.price * item.quantity).toLocaleString()} ج.م
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Financial Totals Breakdown */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                <span className="font-extrabold text-[#174F43] text-xs block pb-1 border-b border-slate-200/80">
+                  {isRTL ? 'ملخص الحسابات والمبالغ' : 'Financial Summary'}
+                </span>
+
+                <div className="flex justify-between text-slate-600 text-xs">
+                  <span>{isRTL ? 'المجموع الفرعي للمنتجات:' : 'Products Subtotal:'}</span>
+                  <span className="font-mono font-bold text-slate-900">{selectedOrder.subtotal?.toLocaleString()} {isRTL ? 'ج.م' : 'EGP'}</span>
+                </div>
+
                 {selectedOrder.discount > 0 && (
-                  <div className="flex justify-between text-emerald-700">
-                    <span>الخصم المطبق:</span>
-                    <span className="font-mono font-bold">-{selectedOrder.discount?.toLocaleString()} ج.م</span>
+                  <div className="flex justify-between text-emerald-700 text-xs font-semibold">
+                    <span>{isRTL ? 'الخصم المطبق (كوبون / عرض):' : 'Applied Discount:'}</span>
+                    <span className="font-mono">-{selectedOrder.discount?.toLocaleString()} {isRTL ? 'ج.م' : 'EGP'}</span>
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <span className="text-slate-500">رسوم الشحن:</span>
-                  <span className="font-mono font-bold">{(selectedOrder.shipping || selectedOrder.metroPickupFee || 0) === 0 ? 'مجاناً' : `${selectedOrder.shipping || selectedOrder.metroPickupFee} ج.م`}</span>
+
+                <div className="flex justify-between text-slate-600 text-xs">
+                  <span>{isRTL ? 'رسوم التوصيل والشحن (المحصلة من العميل):' : 'Shipping Fee Charged:'}</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {(selectedOrder.shippingFeeCharged ?? selectedOrder.shipping ?? selectedOrder.metroPickupFee ?? 0) === 0 ? (
+                      <span className="text-emerald-700 font-bold">{isRTL ? 'شحن مجاني (0 ج.م)' : 'Free Shipping (0 EGP)'}</span>
+                    ) : (
+                      `${Math.round(selectedOrder.shippingFeeCharged ?? selectedOrder.shipping ?? selectedOrder.metroPickupFee)} ${isRTL ? 'ج.م' : 'EGP'}`
+                    )}
+                  </span>
                 </div>
-                <div className="flex justify-between pt-2 border-t border-slate-200 text-sm font-black text-[#03204E]">
-                  <span>الإجمالي النهائي:</span>
-                  <span className="font-mono">{selectedOrder.total?.toLocaleString()} ج.م</span>
+
+                {selectedOrder.shippingDiscount > 0 && (
+                  <div className="flex justify-between text-emerald-700 text-xs font-semibold">
+                    <span>{isRTL ? 'خصم الشحن المباشر (كوبون):' : 'Shipping Promo Discount:'}</span>
+                    <span className="font-mono">-{Math.round(selectedOrder.shippingDiscount)} {isRTL ? 'ج.م' : 'EGP'}</span>
+                  </div>
+                )}
+
+                <div className="flex justify-between pt-2.5 border-t border-slate-200/90 text-sm font-black text-[#174F43]">
+                  <span className="text-sm">{isRTL ? 'المبلغ الإجمالي النهائي المطلوب:' : 'Total Amount Due:'}</span>
+                  <span className="font-mono text-base">{selectedOrder.total?.toLocaleString()} {isRTL ? 'ج.م' : 'EGP'}</span>
                 </div>
               </div>
+
+              {/* Order Status History Audit Trail */}
+              {selectedOrder.statusHistory && selectedOrder.statusHistory.length > 0 && (
+                <div className="p-4 bg-slate-50/90 rounded-2xl border border-slate-200 space-y-2.5">
+                  <span className="font-extrabold text-[#174F43] text-xs block pb-1 border-b border-slate-200">
+                    {isRTL ? 'سجل تتبع ومراحل الطلب' : 'Status Audit History'}
+                  </span>
+                  <div className="space-y-2 pt-1">
+                    {selectedOrder.statusHistory.map((h, idx) => (
+                      <div key={idx} className="flex items-start justify-between text-xs border-r-2 border-[#174F43] pr-2.5 py-0.5">
+                        <div>
+                          <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                            <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] ${statusConfig[h.status]?.bg || 'bg-slate-100'} ${statusConfig[h.status]?.color || 'text-slate-800'}`}>
+                              {statusConfig[h.status]?.[isRTL ? 'labelAr' : 'labelEn'] || h.status}
+                            </span>
+                            {h.changedBy && (
+                              <span className="text-[10px] text-slate-400 font-normal">{isRTL ? `بواسطة: ${h.changedBy}` : `By: ${h.changedBy}`}</span>
+                            )}
+                          </div>
+                          {h.note && <p className="text-[11px] text-slate-600 mt-0.5">{h.note}</p>}
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                          {new Date(h.changedAt).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
             </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3 border-t border-slate-200 bg-[#F8FAFC] flex items-center justify-between shrink-0">
+              <span className="text-[11px] text-slate-400 font-medium">
+                معرف الطلب الداخلي: {selectedOrder._id}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setSelectedOrder(null)}
+                className="px-5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold transition-colors"
+              >
+                إغلاق النافذة
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* RETURN FROM SHIPPING MODAL */}
+      {returnModalOrder && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="relative w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-amber-500/10 border-b border-amber-200 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center text-amber-800">
+                  <RotateCcw size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-amber-950">
+                    تسجيل شحنة مرتجعة وتكاليف الشحن
+                  </h3>
+                  <span className="text-[11px] font-mono text-amber-800 font-semibold block">
+                    طلب رقم #{returnModalOrder.orderNumber} • العميل: {returnModalOrder.customer?.name || returnModalOrder.customerPhone || 'عميل M20'}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReturnModalOrder(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleSubmitReturn} className="p-6 space-y-4 text-xs">
+              <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200 text-amber-950 leading-relaxed text-[11px]">
+                <p className="font-bold flex items-center gap-1.5 mb-1 text-amber-900">
+                  <AlertCircle size={14} />
+                  <span>تنبيه القواعد المالية المتبعة:</span>
+                </p>
+                <ul className="list-disc list-inside space-y-0.5 text-amber-900/90 text-[10.5px]">
+                  <li>تتحمل دار M20 تكاليف الشحن الفعلية لشركة الشحن عند رفض العميل الاستلام.</li>
+                  <li>تُسجل هذه الرسوم تلقائياً في المالية كمصروف نقل وتشغيل (تُخصم من صافي الربح ولا تُضاف لتكلفة تصنيع المنتجات).</li>
+                  <li>لا يتم استرجاع المخزون تلقائياً حتى استلام المنتجات المرتجعة فعلياً وفحص سلامتها.</li>
+                </ul>
+              </div>
+
+              {/* Shipping Charges Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    {isRTL ? 'تكلفة الشحن ذهاباً للعميل (ج.م) *' : 'Outbound Carrier Cost (EGP) *'}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    required
+                    value={returnForm.outboundShippingCost}
+                    onChange={(e) => setReturnForm({ ...returnForm, outboundShippingCost: e.target.value })}
+                    className="w-full h-9 bg-white border border-slate-300 rounded-xl px-3 text-xs font-mono font-bold outline-none focus:border-[#174F43]"
+                    placeholder="65"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">{isRTL ? 'رسوم التوصيل الصادرة للعنوان' : 'Outbound delivery fee paid to courier'}</span>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    {isRTL ? 'تكلفة الشحن إياباً / عودة للمخزن (ج.م) *' : 'Return Carrier Cost (EGP) *'}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    required
+                    value={returnForm.returnShippingCost}
+                    onChange={(e) => setReturnForm({ ...returnForm, returnShippingCost: e.target.value })}
+                    className="w-full h-9 bg-white border border-slate-300 rounded-xl px-3 text-xs font-mono font-bold outline-none focus:border-[#174F43]"
+                    placeholder="65"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">{isRTL ? 'إذا كانت شركة الشحن تحاسب على العودة' : 'If carrier charges return fee'}</span>
+                </div>
+              </div>
+
+              {/* Total Calculation Display */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                <span className="font-bold text-slate-700">{isRTL ? 'إجمالي تكلفة الشحن المتكبدة على M20:' : 'Total Carrier Shipping Cost:'}</span>
+                <span className="font-mono font-black text-sm text-rose-700">
+                  {Math.round((Number(returnForm.outboundShippingCost) || 0) + (Number(returnForm.returnShippingCost) || 0)).toLocaleString()} {isRTL ? 'ج.م' : 'EGP'}
+                </span>
+              </div>
+
+              {/* Return Reason */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  {isRTL ? 'سبب الارتجاع *' : 'Return Reason *'}
+                </label>
+                <select
+                  value={returnForm.returnReason}
+                  onChange={(e) => setReturnForm({ ...returnForm, returnReason: e.target.value })}
+                  className="w-full h-9 bg-white border border-slate-300 rounded-xl px-3 text-xs outline-none focus:border-[#174F43] font-medium"
+                >
+                  <option value={isRTL ? 'رفض العميل الاستلام' : 'Customer Refused Delivery'}>
+                    {isRTL ? 'رفض العميل الاستلام عند وصول المندوب' : 'Customer refused delivery upon courier arrival'}
+                  </option>
+                  <option value={isRTL ? 'تعذر التواصل مع العميل أو الهاتف مغلق' : 'Customer Unreachable / Phone Off'}>
+                    {isRTL ? 'تعذر التواصل مع العميل أو الهاتف مغلق' : 'Customer unreachable or phone off'}
+                  </option>
+                  <option value={isRTL ? 'عنوان غير دقيق أو خارج نطاق التغطية' : 'Invalid Address or Out of Coverage'}>
+                    {isRTL ? 'عنوان غير دقيق أو خارج نطاق التغطية' : 'Invalid address or out of delivery zone'}
+                  </option>
+                  <option value={isRTL ? 'طلب العميل الإلغاء بعد خروج الشحنة' : 'Customer Cancelled After Dispatch'}>
+                    {isRTL ? 'طلب العميل الإلغاء بعد خروج الشحنة' : 'Customer cancelled after dispatch'}
+                  </option>
+                  <option value={isRTL ? 'تأخر شركة الشحن في التسليم' : 'Courier Delay'}>
+                    {isRTL ? 'تأخر شركة الشحن ورغبة العميل في الإلغاء' : 'Courier delayed and customer refused'}
+                  </option>
+                  <option value={isRTL ? 'سبب آخر' : 'Other Reason'}>
+                    {isRTL ? 'سبب آخر (موضح بالملاحظات)' : 'Other reason (specified in notes)'}
+                  </option>
+                </select>
+              </div>
+
+              {/* Cash Account for Shipping Expense */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  الخزينة / حساب الدفع لسداد مصاريف الشحن
+                </label>
+                <select
+                  value={returnForm.paymentAccountId}
+                  onChange={(e) => setReturnForm({ ...returnForm, paymentAccountId: e.target.value })}
+                  className="w-full h-9 bg-white border border-slate-300 rounded-xl px-3 text-xs outline-none focus:border-[#174F43] font-medium"
+                >
+                  <option value="">-- اختياري: سداد لاحق / غير مخصوم فوراً من الخزينة --</option>
+                  {cashAccounts.map(acc => (
+                    <option key={acc._id} value={acc._id}>
+                      {acc.name} ({acc.type}) - رصيد: {acc.balance?.toLocaleString()} ج.م
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">في حال تم خصم الرسوم نقداً أو من محفظة شركة الشحن</span>
+              </div>
+
+              {/* Inspection / Courier Notes */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  ملاحظات إضافية أو تقرير المندوب
+                </label>
+                <textarea
+                  rows="2"
+                  value={returnForm.notes}
+                  onChange={(e) => setReturnForm({ ...returnForm, notes: e.target.value })}
+                  placeholder="ملاحظات شركة الشحن، حالة الطرد الخارجي، إلخ..."
+                  className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs outline-none focus:border-[#174F43]"
+                />
+              </div>
+
+              {/* Modal Actions */}
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setReturnModalOrder(null)}
+                  className="px-4 py-2 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-50 font-bold text-xs"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingReturn}
+                  className="px-5 py-2 bg-[#174F43] hover:bg-[#0F3830] text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50"
+                >
+                  {submittingReturn ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+                  <span>حفظ وتسجيل الشحنة المرتجعة</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOMER REFUND MODAL */}
+      {refundModalOrder && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="relative w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-[#174F43]/10 border-b border-[#174F43]/20 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-[#174F43]/15 flex items-center justify-center text-[#174F43]">
+                  <Undo2 size={18} className="text-[#FF9D00]" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-[#174F43]">
+                    معالجة استرداد المبلغ للعميل (Refund)
+                  </h3>
+                  <span className="text-[11px] font-mono text-slate-600 font-semibold block">
+                    طلب رقم #{refundModalOrder.orderNumber} • المبلغ المحصل: {refundModalOrder.total?.toLocaleString()} ج.م
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRefundModalOrder(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleSubmitRefund} className="p-6 space-y-4 text-xs">
+              <p className="text-slate-600 leading-relaxed text-[11.5px]">
+                نظراً لارتجاع الشحنة بعد تحصيل قيمتها مسبقاً، سيتم صرف المبلغ وإرجاعه للعميل وخصمه تلقائياً من الخزينة المحددة وتسجيل قيد استرداد مالي.
+              </p>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  مبلغ الاسترداد (ج.م) *
+                </label>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="any"
+                  max={refundModalOrder.total}
+                  required
+                  value={refundForm.refundAmount}
+                  onChange={(e) => setRefundForm({ ...refundForm, refundAmount: e.target.value })}
+                  className="w-full h-9 bg-white border border-slate-300 rounded-xl px-3 text-xs font-mono font-bold outline-none focus:border-[#174F43]"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  الخزينة / الحساب المالي المراد الصرف منه *
+                </label>
+                <select
+                  required
+                  value={refundForm.cashAccountId}
+                  onChange={(e) => setRefundForm({ ...refundForm, cashAccountId: e.target.value })}
+                  className="w-full h-9 bg-white border border-slate-300 rounded-xl px-3 text-xs outline-none focus:border-[#174F43] font-medium"
+                >
+                  <option value="">-- اختر الخزينة أو المحفظة --</option>
+                  {cashAccounts.map(acc => (
+                    <option key={acc._id} value={acc._id}>
+                      {acc.name} ({acc.type}) - رصيد: {acc.balance?.toLocaleString()} ج.م
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  ملاحظات أو رقم معاملة التحويل (إن وجد)
+                </label>
+                <textarea
+                  rows="2"
+                  value={refundForm.notes}
+                  onChange={(e) => setRefundForm({ ...refundForm, notes: e.target.value })}
+                  placeholder="رقم مرجع إنستاباي، فودافون كاش، إلخ..."
+                  className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs outline-none focus:border-[#174F43]"
+                />
+              </div>
+
+              {/* Modal Actions */}
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setRefundModalOrder(null)}
+                  className="px-4 py-2 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-50 font-bold text-xs"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingRefund}
+                  className="px-5 py-2 bg-[#174F43] hover:bg-[#0F3830] text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50"
+                >
+                  {submittingRefund ? <RefreshCw size={14} className="animate-spin text-[#FF9D00]" /> : <Check size={14} className="text-[#FF9D00]" />}
+                  <span>تأكيد خصم وصرف الاسترداد</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -1271,7 +2397,7 @@ export default function OrdersPage() {
           <div className="no-print mb-4 flex items-center gap-3">
             <button 
               onClick={() => window.print()}
-              className="px-4 py-2 bg-[#03204E] text-white font-bold rounded-xl text-xs flex items-center gap-2"
+              className="px-4 py-2 bg-[#174F43] text-white font-bold rounded-xl text-xs flex items-center gap-2"
             >
               <Printer size={16} />
               <span>طباعة فورية</span>
@@ -1300,8 +2426,8 @@ export default function OrdersPage() {
               }}
             >
               {/* Thermal Invoice Top */}
-              <div style={{ textAlign: 'center', borderBottom: '1.5px solid #03204E', paddingBottom: '6px', marginBottom: '8px' }}>
-                <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '900', color: '#03204E', letterSpacing: '1px' }}>ÉLAN</h1>
+              <div style={{ textAlign: 'center', borderBottom: '1.5px solid #174F43', paddingBottom: '6px', marginBottom: '8px' }}>
+                <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '900', color: '#174F43', letterSpacing: '1px' }}>M20</h1>
                 <p style={{ margin: 0, fontSize: '8px', textTransform: 'uppercase', color: '#64748B' }}>HAUTE PARFUMERIE • ATELIER DU CAIRE</p>
                 <p style={{ margin: '4px 0 0 0', fontSize: '11px', fontWeight: 'bold' }}>فاتورة طلب رقم #{selectedOrder.orderNumber}</p>
                 <p style={{ margin: 0, fontSize: '8px', color: '#64748B' }}>{new Date(selectedOrder.createdAt).toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
@@ -1310,7 +2436,7 @@ export default function OrdersPage() {
               {/* Customer Box */}
               <div style={{ backgroundColor: '#F8FAFC', padding: '6px', borderRadius: '4px', marginBottom: '8px', fontSize: '9.5px', border: '1px solid #E2E8F0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span><strong>العميل:</strong> {selectedOrder.customer?.name || 'عميل ÉLAN'}</span>
+                  <span><strong>العميل:</strong> {selectedOrder.customer?.name || 'عميل M20'}</span>
                   <span style={{ fontFamily: 'monospace' }}>{selectedOrder.customerPhone || selectedOrder.customer?.phone}</span>
                 </div>
                 {selectedOrder.customerPhone2 && (
@@ -1322,7 +2448,7 @@ export default function OrdersPage() {
                   {selectedOrder.deliveryMethod === 'metro_pickup' ? (
                     <span><strong>استلام محطة مترو:</strong> {selectedOrder.metroPickup?.stationNameAr || selectedOrder.metroPickup?.stationName}</span>
                   ) : (
-                    <span><strong>العنوان:</strong> {selectedOrder.shippingAddress?.governorate} - {selectedOrder.shippingAddress?.city} - {selectedOrder.shippingAddress?.street}</span>
+                    <span><strong>العنوان:</strong> {formatGovernorate(selectedOrder.shippingAddress?.governorate, isRTL)} - {selectedOrder.shippingAddress?.city} - {selectedOrder.shippingAddress?.street}</span>
                   )}
                 </div>
               </div>
@@ -1365,7 +2491,7 @@ export default function OrdersPage() {
                   <span>الشحن:</span>
                   <span>{(selectedOrder.shipping || selectedOrder.metroPickupFee || 0) === 0 ? 'مجاناً' : `${selectedOrder.shipping || selectedOrder.metroPickupFee} ج.م`}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #CBD5E1', paddingTop: '4px', fontWeight: '900', fontSize: '12px', color: '#03204E' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #CBD5E1', paddingTop: '4px', fontWeight: '900', fontSize: '12px', color: '#174F43' }}>
                   <span>الإجمالي النهائي:</span>
                   <span>{selectedOrder.total?.toLocaleString()} ج.م</span>
                 </div>
@@ -1374,13 +2500,13 @@ export default function OrdersPage() {
               {/* QR Code Verification Box */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #E2E8F0', padding: '6px', borderRadius: '6px' }}>
                 <div>
-                  <p style={{ margin: 0, fontWeight: 'bold', fontSize: '9px', color: '#03204E' }}>امسح للتحقق ومتابعة الشحنة</p>
-                  <p style={{ margin: '2px 0 0 0', fontSize: '8px', color: '#64748B' }}>elan.online/track-order</p>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '7.5px', color: '#94A3B8' }}>شكراً لاختياركم دار عطور ÉLAN</p>
+                  <p style={{ margin: 0, fontWeight: 'bold', fontSize: '9px', color: '#174F43' }}>امسح للتحقق ومتابعة الشحنة</p>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '8px', color: '#64748B' }}>m20fragrance.com/track-order</p>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '7.5px', color: '#94A3B8' }}>شكراً لاختياركم دار عطور M20</p>
                 </div>
                 <div style={{ padding: '3px', backgroundColor: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '4px' }}>
                   <QRCodeSVG 
-                    value={`https://elan.online/track-order?order=${selectedOrder.orderNumber}`} 
+                    value={`https://m20fragrance.com/track-order?order=${selectedOrder.orderNumber}`} 
                     size={48}
                     level="M"
                   />
@@ -1401,27 +2527,27 @@ export default function OrdersPage() {
                 color: '#0F172A',
                 margin: '0 auto',
                 fontSize: '11px',
-                border: '2px solid #03204E'
+                border: '2px solid #174F43'
               }}
             >
               {/* Shipping Label Top */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #03204E', paddingBottom: '6px', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #174F43', paddingBottom: '6px', marginBottom: '8px' }}>
                 <div>
-                  <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '900', color: '#03204E' }}>ÉLAN PARFUMS</h1>
+                  <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '900', color: '#174F43' }}>M20 PARFUMS</h1>
                   <p style={{ margin: 0, fontSize: '8px', textTransform: 'uppercase', color: '#64748B' }}>Fragile • Luxury Goods</p>
                 </div>
-                <div style={{ textAlign: 'left', fontWeight: 'bold', fontSize: '13px', color: '#03204E' }}>
+                <div style={{ textAlign: 'left', fontWeight: 'bold', fontSize: '13px', color: '#174F43' }}>
                   بوليصة شحن
                 </div>
               </div>
 
               {/* Receiver Info */}
-              <div style={{ border: '1.5px solid #03204E', padding: '8px', borderRadius: '6px', marginBottom: '8px', backgroundColor: '#F8FAFC' }}>
-                <span style={{ display: 'inline-block', backgroundColor: '#03204E', color: '#FFFFFF', fontSize: '8px', fontWeight: 'bold', padding: '1px 5px', borderRadius: '2px', marginBottom: '4px' }}>
+              <div style={{ border: '1.5px solid #174F43', padding: '8px', borderRadius: '6px', marginBottom: '8px', backgroundColor: '#F8FAFC' }}>
+                <span style={{ display: 'inline-block', backgroundColor: '#174F43', color: '#FFFFFF', fontSize: '8px', fontWeight: 'bold', padding: '1px 5px', borderRadius: '2px', marginBottom: '4px' }}>
                   المرسل إليه (المستلم)
                 </span>
-                <p style={{ margin: '2px 0', fontSize: '13px', fontWeight: 'bold', color: '#03204E' }}>
-                  {selectedOrder.customer?.name || 'عميل ÉLAN'}
+                <p style={{ margin: '2px 0', fontSize: '13px', fontWeight: 'bold', color: '#174F43' }}>
+                  {selectedOrder.customer?.name || 'عميل M20'}
                 </p>
                 <p style={{ margin: '2px 0', fontSize: '12px', fontWeight: 'bold', fontFamily: 'monospace' }}>
                   هاتف 1: {selectedOrder.customerPhone || selectedOrder.customer?.phone}
@@ -1433,12 +2559,12 @@ export default function OrdersPage() {
                 )}
                 <div style={{ marginTop: '4px', borderTop: '1px solid #CBD5E1', paddingTop: '4px' }}>
                   {selectedOrder.deliveryMethod === 'metro_pickup' ? (
-                    <p style={{ margin: 0, fontSize: '11px', fontWeight: 'bold', color: '#03204E' }}>
+                    <p style={{ margin: 0, fontSize: '11px', fontWeight: 'bold', color: '#174F43' }}>
                       تسليم محطة مترو: {selectedOrder.metroPickup?.stationNameAr || selectedOrder.metroPickup?.stationName}
                     </p>
                   ) : (
                     <p style={{ margin: 0, fontSize: '11px', lineHeight: '1.4' }}>
-                      <strong>العنوان:</strong> {selectedOrder.shippingAddress?.governorate} - {selectedOrder.shippingAddress?.city} - {selectedOrder.shippingAddress?.street} (مبنى: {selectedOrder.shippingAddress?.buildingNumber || '-'})
+                      <strong>العنوان:</strong> {formatGovernorate(selectedOrder.shippingAddress?.governorate, isRTL)} - {selectedOrder.shippingAddress?.city} - {selectedOrder.shippingAddress?.street} (مبنى: {selectedOrder.shippingAddress?.buildingNumber || '-'})
                       {selectedOrder.shippingAddress?.deliveryNotes && ` [ملاحظات: ${selectedOrder.shippingAddress?.deliveryNotes}]`}
                     </p>
                   )}
@@ -1446,7 +2572,7 @@ export default function OrdersPage() {
               </div>
 
               {/* COD / Payment Notice */}
-              <div style={{ border: '2px dashed #03204E', padding: '6px', textAlign: 'center', marginBottom: '8px', borderRadius: '6px', backgroundColor: selectedOrder.paymentStatus === 'paid' ? '#ECFDF5' : '#FEF3C7' }}>
+              <div style={{ border: '2px dashed #174F43', padding: '6px', textAlign: 'center', marginBottom: '8px', borderRadius: '6px', backgroundColor: selectedOrder.paymentStatus === 'paid' ? '#ECFDF5' : '#FEF3C7' }}>
                 <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#64748B' }}>
                   {selectedOrder.paymentStatus === 'paid' ? 'حالة السداد:' : 'المبلغ المطلوب تحصيله عند الاستلام (COD):'}
                 </span>
@@ -1459,10 +2585,10 @@ export default function OrdersPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '9px', color: '#64748B', borderTop: '1px solid #E2E8F0', paddingTop: '6px' }}>
                 <div>
                   <p style={{ margin: 0, fontWeight: 'bold', color: '#B91C1C' }}>⚠️ تنبيه: محتويات قابلة للكسر (عطور زجاجية فاخرة)</p>
-                  <p style={{ margin: '2px 0 0 0' }}>المرسل: دار ÉLAN للعطور • القاهرة</p>
+                  <p style={{ margin: '2px 0 0 0' }}>المرسل: دار M20 للعطور • القاهرة</p>
                 </div>
                 <div style={{ textAlign: 'left' }}>
-                  <QRCodeSVG value={`https://elan.online/track-order?order=${selectedOrder.orderNumber}`} size={38} />
+                  <QRCodeSVG value={`https://m20fragrance.com/track-order?order=${selectedOrder.orderNumber}`} size={38} />
                 </div>
               </div>
             </div>
@@ -1472,3 +2598,4 @@ export default function OrdersPage() {
     </div>
   );
 }
+

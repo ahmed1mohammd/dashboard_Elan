@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { 
   DollarSign, Plus, Trash2, Filter, RefreshCw, 
   X, Calendar, Wallet, PieChart, Tag
@@ -118,12 +118,12 @@ export default function ExpensesPage() {
   const totalExpenseAmount = summary.totalExpenses || expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
 
   return (
-    <div className="space-y-6 text-right font-['Tajawal',sans-serif]">
+    <div className="space-y-6 text-right font-['Cairo',sans-serif]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-200">
         <div>
-          <h1 className="text-xl font-bold text-[#03204E] flex items-center gap-2">
-            <DollarSign size={20} strokeWidth={1.5} className="text-[#03204E]" />
+          <h1 className="text-xl font-bold text-[#174F43] flex items-center gap-2">
+            <DollarSign size={20} strokeWidth={1.5} className="text-[#174F43]" />
             <span>المصروفات التشغيلية (Operating Expenses)</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -134,7 +134,7 @@ export default function ExpensesPage() {
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <button
             onClick={handleOpenAdd}
-            className="px-3.5 py-2 rounded-sm bg-[#03204E] hover:bg-[#02183b] text-white text-xs font-medium flex items-center gap-1.5 transition-colors duration-150 h-9"
+            className="px-3.5 py-2 rounded-sm bg-[#174F43] hover:bg-[#0F3830] text-white text-xs font-medium flex items-center gap-1.5 transition-colors duration-150 h-9"
           >
             <Plus size={14} />
             <span>تسجيل مصروف جديد</span>
@@ -223,7 +223,7 @@ export default function ExpensesPage() {
                 <tr>
                   <td colSpan="7" className="py-8 text-center text-slate-400">
                     <div className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-[#03204E] border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-4 h-4 border-2 border-[#174F43] border-t-transparent rounded-full animate-spin"></div>
                       <span>جاري تحميل المصروفات...</span>
                     </div>
                   </td>
@@ -289,7 +289,7 @@ export default function ExpensesPage() {
           <div className="fixed inset-0 bg-black/40" onClick={() => setShowModal(false)} />
           <div className="relative w-full max-w-md bg-white rounded-sm border border-slate-200 overlay-shadow z-10">
             <div className="px-5 py-3.5 border-b border-slate-200 bg-[#F8FAFC] flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-[#03204E] flex items-center gap-1.5">
+              <h2 className="text-sm font-semibold text-[#174F43] flex items-center gap-1.5">
                 <Plus size={16} />
                 <span>تسجيل مصروف تشغيلي جديد</span>
               </h2>
@@ -307,7 +307,7 @@ export default function ExpensesPage() {
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="مثال: حملة إعلانية فيسبوك وإنستجرام"
-                  className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs outline-none focus:border-[#03204E]"
+                  className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs outline-none focus:border-[#174F43]"
                 />
               </div>
 
@@ -335,7 +335,7 @@ export default function ExpensesPage() {
                     value={formData.amount}
                     onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                     placeholder="3500"
-                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none focus:border-[#03204E]"
+                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none focus:border-[#174F43]"
                   />
                 </div>
               </div>
@@ -376,7 +376,7 @@ export default function ExpensesPage() {
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   placeholder="ملاحظات توثيقية إضافية..."
-                  className="w-full bg-white border border-slate-200 rounded-sm p-2 text-xs outline-none focus:border-[#03204E]"
+                  className="w-full bg-white border border-slate-200 rounded-sm p-2 text-xs outline-none focus:border-[#174F43]"
                 />
               </div>
 
@@ -391,7 +391,7 @@ export default function ExpensesPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2 bg-[#03204E] text-white rounded-sm hover:bg-[#02183b] h-9 font-medium disabled:opacity-50"
+                  className="px-5 py-2 bg-[#174F43] text-white rounded-sm hover:bg-[#0F3830] h-9 font-medium disabled:opacity-50"
                 >
                   {submitting ? 'جاري الحفظ...' : 'تسجيل المصروف'}
                 </button>
@@ -403,3 +403,4 @@ export default function ExpensesPage() {
     </div>
   );
 }
+
