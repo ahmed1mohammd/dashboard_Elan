@@ -456,6 +456,11 @@ export const deleteOffer = async (id) => {
   return res.data?.data || res.data;
 };
 
+export const getMarketingAnalytics = async (params = {}) => {
+  const res = await API.get('/orders/marketing-analytics', { params });
+  return res.data?.data || res.data;
+};
+
 export default API;
 
 

@@ -19,7 +19,7 @@ import {
   Eye, X, Tag, Smartphone, CreditCard, DollarSign, Home, Train, 
   MessageSquare, Phone, Mail, Printer, ShieldCheck, FileText, 
   ExternalLink, ZoomIn, ArrowUpDown, ChevronRight, Check, AlertCircle, Building, MapPin,
-  Plus, Trash2, ShoppingBag, User, Wallet, RotateCcw, Undo2, AlertTriangle, Archive, Banknote, Save
+  Plus, Trash2, ShoppingBag, User, Wallet, RotateCcw, Undo2, AlertTriangle, Archive, Banknote, Save, Target
 } from 'lucide-react';
 
 const formatGovernorate = (govStr, isRTL) => {
@@ -124,6 +124,7 @@ export default function OrdersPage() {
   
   const initialStatus = searchParams.get('status') || 'all';
   const [selectedStatus, setSelectedStatus] = useState(initialStatus);
+  const [selectedChannel, setSelectedChannel] = useState('all');
   
   // Modals & Print Views
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -655,6 +656,46 @@ export default function OrdersPage() {
     cancelled: orders.filter(o => o.orderStatus === 'cancelled').length,
   };
 
+  const marketingMetrics = React.useMemo(() => {
+    const summary = {
+      meta: { orders: 0, revenue: 0 },
+      tiktok: { orders: 0, revenue: 0 },
+      google: { orders: 0, revenue: 0 },
+      direct: { orders: 0, revenue: 0 },
+      other: { orders: 0, revenue: 0 }
+    };
+
+    let totalRevenue = 0;
+    const campaignsMap = {};
+
+    orders.forEach((o) => {
+      const ch = (o.attribution?.channel || 'direct').toLowerCase();
+      const target = summary[ch] ? summary[ch] : summary.other;
+      target.orders += 1;
+
+      if (['confirmed', 'processing', 'shipped', 'delivered'].includes(o.orderStatus)) {
+        const rev = Math.round(Number(o.total || 0));
+        target.revenue += rev;
+        totalRevenue += rev;
+      }
+
+      if (o.attribution?.campaign) {
+        const camp = o.attribution.campaign;
+        campaignsMap[camp] = (campaignsMap[camp] || 0) + 1;
+      }
+    });
+
+    const topCampaigns = Object.entries(campaignsMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    return {
+      channels: summary,
+      totalRevenue,
+      topCampaigns
+    };
+  }, [orders]);
+
   const filteredOrders = orders.filter(o => {
     const term = search.toLowerCase();
     const orderNum = (o.orderNumber || o._id || '').toLowerCase();
@@ -665,9 +706,10 @@ export default function OrdersPage() {
     const coupon = (o.couponCode || '').toLowerCase();
     
     const matchesSearch = orderNum.includes(term) || customerName.includes(term) || phone.includes(term) || phone2.includes(term) || email.includes(term) || coupon.includes(term);
-    let matchesStatus = selectedStatus === 'all' || o.orderStatus === selectedStatus;
+    const matchesStatus = selectedStatus === 'all' || o.orderStatus === selectedStatus;
+    const matchesChannel = selectedChannel === 'all' || (o.attribution?.channel || 'direct').toLowerCase() === selectedChannel.toLowerCase();
 
-    return matchesSearch && matchesStatus;
+    return matchesSearch && matchesStatus && matchesChannel;
   });
 
   return (
@@ -748,24 +790,156 @@ export default function OrdersPage() {
         })}
       </div>
 
+      {/* Marketing Attribution & Channels Analytics Bar */}
+      <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#174F43]" />
+            <h3 className="text-xs font-bold text-[#174F43]">
+              {isRTL ? 'تحليلات قنوات التسويق والاستحواذ (Attribution & Campaigns)' : 'Marketing & Attribution Channels'}
+            </h3>
+          </div>
+          {marketingMetrics.topCampaigns.length > 0 && (
+            <div className="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">
+              <span className="font-semibold text-slate-700">{isRTL ? 'أبرز الحملات:' : 'Top Campaigns:'}</span>
+              {marketingMetrics.topCampaigns.map(([camp, count]) => (
+                <span key={camp} className="px-2 py-0.5 rounded bg-slate-100 font-mono text-[10px] text-slate-700 border border-slate-200">
+                  {camp} ({count})
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Channels Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          {/* Meta */}
+          <div 
+            onClick={() => setSelectedChannel(selectedChannel === 'meta' ? 'all' : 'meta')}
+            className={`p-3 rounded-xl border cursor-pointer transition-all ${
+              selectedChannel === 'meta'
+                ? 'bg-[#174F43]/10 border-[#174F43] ring-1 ring-[#174F43]'
+                : 'bg-slate-50/60 border-slate-200 hover:bg-slate-100/70'
+            }`}
+          >
+            <div className="flex items-center justify-between text-xs mb-1">
+              <span className="font-bold text-blue-900">Meta (FB / IG)</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-100 text-blue-800 font-mono font-bold">
+                {marketingMetrics.channels.meta.orders} {isRTL ? 'طلب' : 'orders'}
+              </span>
+            </div>
+            <div className="font-mono font-black text-sm text-[#174F43]">
+              {marketingMetrics.channels.meta.revenue.toLocaleString()} ج.م
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-0.5">
+              {orders.length > 0 ? Math.round((marketingMetrics.channels.meta.orders / orders.length) * 100) : 0}% {isRTL ? 'حصة التحويل' : 'share'}
+            </span>
+          </div>
+
+          {/* TikTok */}
+          <div 
+            onClick={() => setSelectedChannel(selectedChannel === 'tiktok' ? 'all' : 'tiktok')}
+            className={`p-3 rounded-xl border cursor-pointer transition-all ${
+              selectedChannel === 'tiktok'
+                ? 'bg-black/10 border-black ring-1 ring-black'
+                : 'bg-slate-50/60 border-slate-200 hover:bg-slate-100/70'
+            }`}
+          >
+            <div className="flex items-center justify-between text-xs mb-1">
+              <span className="font-bold text-slate-900">TikTok</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 text-slate-800 font-mono font-bold">
+                {marketingMetrics.channels.tiktok.orders} {isRTL ? 'طلب' : 'orders'}
+              </span>
+            </div>
+            <div className="font-mono font-black text-sm text-slate-900">
+              {marketingMetrics.channels.tiktok.revenue.toLocaleString()} ج.م
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-0.5">
+              {orders.length > 0 ? Math.round((marketingMetrics.channels.tiktok.orders / orders.length) * 100) : 0}% {isRTL ? 'حصة التحويل' : 'share'}
+            </span>
+          </div>
+
+          {/* Google / Search */}
+          <div 
+            onClick={() => setSelectedChannel(selectedChannel === 'google' ? 'all' : 'google')}
+            className={`p-3 rounded-xl border cursor-pointer transition-all ${
+              selectedChannel === 'google'
+                ? 'bg-sky-50 border-sky-600 ring-1 ring-sky-600'
+                : 'bg-slate-50/60 border-slate-200 hover:bg-slate-100/70'
+            }`}
+          >
+            <div className="flex items-center justify-between text-xs mb-1">
+              <span className="font-bold text-sky-900">Google / Search</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-sky-100 text-sky-800 font-mono font-bold">
+                {marketingMetrics.channels.google.orders} {isRTL ? 'طلب' : 'orders'}
+              </span>
+            </div>
+            <div className="font-mono font-black text-sm text-sky-900">
+              {marketingMetrics.channels.google.revenue.toLocaleString()} ج.م
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-0.5">
+              {orders.length > 0 ? Math.round((marketingMetrics.channels.google.orders / orders.length) * 100) : 0}% {isRTL ? 'حصة التحويل' : 'share'}
+            </span>
+          </div>
+
+          {/* Direct / Organic */}
+          <div 
+            onClick={() => setSelectedChannel(selectedChannel === 'direct' ? 'all' : 'direct')}
+            className={`p-3 rounded-xl border cursor-pointer transition-all ${
+              selectedChannel === 'direct'
+                ? 'bg-slate-200 border-slate-600 ring-1 ring-slate-600'
+                : 'bg-slate-50/60 border-slate-200 hover:bg-slate-100/70'
+            }`}
+          >
+            <div className="flex items-center justify-between text-xs mb-1">
+              <span className="font-bold text-slate-800">مباشر (Direct)</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 text-slate-800 font-mono font-bold">
+                {marketingMetrics.channels.direct.orders} {isRTL ? 'طلب' : 'orders'}
+              </span>
+            </div>
+            <div className="font-mono font-black text-sm text-slate-800">
+              {marketingMetrics.channels.direct.revenue.toLocaleString()} ج.م
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-0.5">
+              {orders.length > 0 ? Math.round((marketingMetrics.channels.direct.orders / orders.length) * 100) : 0}% {isRTL ? 'حصة التحويل' : 'share'}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Filter and Search Bar */}
       <div className="bg-white/90 backdrop-blur-md rounded-2xl p-4 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row gap-3 items-center justify-between">
-        <div className="relative w-full sm:w-96">
-          <input
-            type="text"
-            placeholder="بحث برقم الطلب، اسم العميل، الهاتف، الإيميل أو الكوبون..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-[#F8FAFC] border border-slate-200 focus:border-[#174F43] rounded-xl px-4 py-2.5 pr-10 text-xs outline-none transition-all focus:bg-white focus:shadow-inner"
-          />
-          <Search size={16} className="text-slate-400 absolute right-3.5 top-3" />
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto flex-1">
+          <div className="relative w-full sm:w-80">
+            <input
+              type="text"
+              placeholder="بحث برقم الطلب، اسم العميل، الهاتف، الإيميل أو الكوبون..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-[#F8FAFC] border border-slate-200 focus:border-[#174F43] rounded-xl px-4 py-2.5 pr-10 text-xs outline-none transition-all focus:bg-white focus:shadow-inner"
+            />
+            <Search size={16} className="text-slate-400 absolute right-3.5 top-3" />
+          </div>
+
+          {/* Acquisition Channel Filter Dropdown */}
+          <select
+            value={selectedChannel}
+            onChange={(e) => setSelectedChannel(e.target.value)}
+            className="w-full sm:w-auto h-9 px-3 text-xs font-semibold bg-[#F8FAFC] border border-slate-200 rounded-xl outline-none focus:border-[#174F43] cursor-pointer"
+          >
+            <option value="all">جميع قنوات التسويق</option>
+            <option value="meta">Meta (Facebook & Instagram)</option>
+            <option value="tiktok">TikTok</option>
+            <option value="google">Google / Search</option>
+            <option value="direct">مباشر (Direct / Organic)</option>
+          </select>
         </div>
 
         <div className="text-xs text-slate-500 font-medium w-full sm:w-auto text-left flex items-center gap-3">
           <span>النتائج المعروضة: <strong>{filteredOrders.length}</strong> طلب</span>
-          {selectedStatus !== 'all' && (
+          {(selectedStatus !== 'all' || selectedChannel !== 'all') && (
             <button
-              onClick={() => { setSelectedStatus('all'); setSearchParams({}); }}
+              onClick={() => { setSelectedStatus('all'); setSelectedChannel('all'); setSearchParams({}); }}
               className="text-[#174F43] font-semibold hover:underline"
             >
               إلغاء الفلترة
@@ -819,6 +993,20 @@ export default function OrdersPage() {
                         <span className="text-[10px] text-slate-400 block font-sans font-normal mt-0.5">
                           {new Date(order.createdAt).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </span>
+                        {order.attribution?.channel && (
+                          <span className={`inline-block text-[9px] font-mono font-semibold px-1.5 py-0.2 rounded mt-1 border ${
+                            order.attribution.channel === 'meta'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : order.attribution.channel === 'tiktok'
+                              ? 'bg-slate-900 text-white border-slate-900'
+                              : order.attribution.channel === 'google'
+                              ? 'bg-sky-50 text-sky-700 border-sky-200'
+                              : 'bg-slate-100 text-slate-600 border-slate-200'
+                          }`}>
+                            {order.attribution.channel.toUpperCase()}
+                            {order.attribution.campaign ? ` : ${order.attribution.campaign}` : ''}
+                          </span>
+                        )}
                       </td>
 
                       {/* Customer Info */}
@@ -1713,6 +1901,63 @@ export default function OrdersPage() {
               {/* Customer & Delivery Information Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 
+                {/* Marketing Attribution & Ad Source Card */}
+                {selectedOrder.attribution && (
+                  <div className="p-4 bg-slate-50/90 border border-slate-200/90 rounded-2xl space-y-2.5 sm:col-span-2">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+                      <span className="font-extrabold text-[#174F43] text-xs flex items-center gap-1.5">
+                        <Target size={15} />
+                        <span>مصدر الزيارة والتسويق (Attribution & Campaigns)</span>
+                      </span>
+                      <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full ${
+                        selectedOrder.attribution.channel === 'meta'
+                          ? 'bg-blue-100 text-blue-900 border border-blue-200'
+                          : selectedOrder.attribution.channel === 'tiktok'
+                          ? 'bg-slate-900 text-white'
+                          : selectedOrder.attribution.channel === 'google'
+                          ? 'bg-sky-100 text-sky-900 border border-sky-200'
+                          : 'bg-slate-200 text-slate-800'
+                      }`}>
+                        {(selectedOrder.attribution.channel || 'direct').toUpperCase()}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block">القناة:</span>
+                        <strong className="text-slate-800 font-bold">{selectedOrder.attribution.channel || 'direct'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block">المصدر / الوسيط:</span>
+                        <span className="font-mono text-slate-700">
+                          {selectedOrder.attribution.source || '-'}/{selectedOrder.attribution.medium || '-'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block">اسم الحملة:</span>
+                        <span className="font-mono font-bold text-slate-900">{selectedOrder.attribution.campaign || 'Direct / None'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block">معرّف تتبع CAPI:</span>
+                        <span className="font-mono text-[10px] text-slate-600 truncate block" title={selectedOrder.metaEventId || `order_${selectedOrder.orderNumber}`}>
+                          {selectedOrder.metaEventId || `order_${selectedOrder.orderNumber}`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {(selectedOrder.attribution.fbclid || selectedOrder.attribution.ttclid) && (
+                      <div className="pt-1.5 border-t border-slate-200/60 flex items-center gap-4 text-[11px] text-slate-500 font-mono">
+                        {selectedOrder.attribution.fbclid && (
+                          <span>fbclid: <span className="text-slate-700 truncate max-w-[200px] inline-block align-bottom">{selectedOrder.attribution.fbclid}</span></span>
+                        )}
+                        {selectedOrder.attribution.ttclid && (
+                          <span>ttclid: <span className="text-slate-700 truncate max-w-[200px] inline-block align-bottom">{selectedOrder.attribution.ttclid}</span></span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Customer Card */}
                 <div className="p-4 bg-slate-50/90 border border-slate-200/90 rounded-2xl space-y-3">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">

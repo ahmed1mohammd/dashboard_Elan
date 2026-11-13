@@ -13,7 +13,11 @@ import {
   ShieldCheck, 
   MapPin, 
   Layers, 
-  DollarSign 
+  DollarSign,
+  Activity,
+  Eye,
+  EyeOff,
+  Target
 } from 'lucide-react';
 import { uploadImageToCloudinary, getAdminSettings, updateSettings } from '../services/api';
 import { EGYPT_GOVERNORATES, TIER_DESCRIPTIONS } from '../data/egyptGovernorates';
@@ -62,6 +66,15 @@ export default function CMSPage() {
 
   const [metroPickupFee, setMetroPickupFee] = useState(0);
 
+  // Marketing Tracking & Pixels (Meta Pixel, CAPI, TikTok Pixel)
+  const [tracking, setTracking] = useState({
+    enableTracking: true,
+    metaPixelId: '',
+    metaCapiAccessToken: '',
+    tiktokPixelId: ''
+  });
+  const [showCapiToken, setShowCapiToken] = useState(false);
+
   // Load saved settings on mount
   useEffect(() => {
     const loadSettings = async () => {
@@ -107,6 +120,14 @@ export default function CMSPage() {
               });
               setShippingRates(loadedRates);
             }
+          }
+          if (data.tracking) {
+            setTracking({
+              enableTracking: data.tracking.enableTracking !== false,
+              metaPixelId: data.tracking.metaPixelId || '',
+              metaCapiAccessToken: data.tracking.metaCapiAccessToken || '',
+              tiktokPixelId: data.tracking.tiktokPixelId || ''
+            });
           }
         }
       } catch (err) {
@@ -221,6 +242,12 @@ export default function CMSPage() {
           realCostMap: ratesPayload,
           metroPickupCustomerFee: Math.round(Number(metroPickupFee || 0)),
           defaultCustomerRate: 75
+        },
+        tracking: {
+          enableTracking: tracking.enableTracking,
+          metaPixelId: (tracking.metaPixelId || '').trim(),
+          metaCapiAccessToken: (tracking.metaCapiAccessToken || '').trim(),
+          tiktokPixelId: (tracking.tiktokPixelId || '').trim()
         }
       };
 
@@ -318,6 +345,19 @@ export default function CMSPage() {
         >
           <PhoneCall size={14} />
           <span>{lang === 'ar' ? 'بيانات التواصل وروابط المتجر' : 'Contact & Social'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('tracking')}
+          className={`px-4 py-2 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 ${
+            activeTab === 'tracking'
+              ? 'border-[#174F43] text-[#174F43]'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Activity size={14} />
+          <span>{lang === 'ar' ? 'التتبع والإعلانات (Meta & TikTok)' : 'Ad Tracking & Pixels (Meta & TikTok)'}</span>
         </button>
       </div>
 
@@ -612,6 +652,178 @@ export default function CMSPage() {
                 onChange={(e) => setContact({ ...contact, facebook: e.target.value })}
                 className="w-full h-9 border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none focus:border-[#174F43]"
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: AD TRACKING & PIXELS (META PIXEL, CAPI, TIKTOK PIXEL) */}
+      {activeTab === 'tracking' && (
+        <div className="space-y-6">
+          {/* Top Info Banner */}
+          <div className="bg-white rounded-sm border border-slate-200 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-sm bg-[#174F43]/10 text-[#174F43] flex items-center justify-center shrink-0 mt-0.5">
+                <Target size={18} />
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-slate-900">
+                  {lang === 'ar' ? 'تتبع الإعلانات والتحويلات (Meta Pixel + CAPI & TikTok)' : 'E-Commerce Tracking & Conversion APIs'}
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {lang === 'ar'
+                    ? 'ربط بكسل ميتا وبكسل تيك توك مع نظام Conversions API المدمج من السيرفر لمنع تكرار التحويلات (Deduplication) وتتبع أرباح الحملات الإعلانية بدقة.'
+                    : 'Configure Meta Pixel, TikTok Pixel, and server-side Conversions API (CAPI) with deduplicated purchase events (order_${orderNumber}) and EGP currency.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Global Enable Toggle */}
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-sm">
+              <span className="text-xs font-semibold text-slate-700">
+                {lang === 'ar' ? 'حالة التتبع:' : 'Tracking:'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setTracking({ ...tracking, enableTracking: !tracking.enableTracking })}
+                className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  tracking.enableTracking ? 'bg-[#174F43]' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                    tracking.enableTracking ? (isRTL ? '-translate-x-5' : 'translate-x-5') : 'translate-x-0'
+                  }`}
+                />
+              </button>
+              <span className={`text-xs font-bold ${tracking.enableTracking ? 'text-[#174F43]' : 'text-slate-400'}`}>
+                {tracking.enableTracking ? (lang === 'ar' ? 'مفعل' : 'Active') : (lang === 'ar' ? 'معطل' : 'Disabled')}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Meta (Facebook & Instagram) Configuration */}
+            <div className="bg-white rounded-sm border border-slate-200 p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-sm bg-blue-50 text-blue-700 flex items-center justify-center font-bold text-xs">
+                    M
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900">
+                      {lang === 'ar' ? 'إعدادات Meta (Facebook & Instagram)' : 'Meta Pixel & Conversions API'}
+                    </h4>
+                    <span className="text-[10px] text-slate-400 font-mono">fbq + Graph API v19.0</span>
+                  </div>
+                </div>
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                  tracking.metaPixelId ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'
+                }`}>
+                  {tracking.metaPixelId ? (lang === 'ar' ? 'مضبوط' : 'Configured') : (lang === 'ar' ? 'غير محدد' : 'Not set')}
+                </span>
+              </div>
+
+              {/* Meta Pixel ID */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  {lang === 'ar' ? 'معرف بكسل ميتا (Meta Pixel ID)' : 'Meta Pixel ID'}
+                </label>
+                <input
+                  type="text"
+                  placeholder="مثال: 123456789012345"
+                  value={tracking.metaPixelId}
+                  onChange={(e) => setTracking({ ...tracking, metaPixelId: e.target.value })}
+                  className="w-full h-9 border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none focus:border-[#174F43]"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  {lang === 'ar'
+                    ? 'يتم حقنه تلقائياً في واجهة المتجر لإطلاق أحداث: PageView, ViewContent, AddToCart, InitiateCheckout, Purchase.'
+                    : 'Injected into storefront for client-side events: PageView, ViewContent, AddToCart, InitiateCheckout, Purchase.'}
+                </p>
+              </div>
+
+              {/* Meta CAPI Access Token */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  {lang === 'ar' ? 'توكن واجهة التحويلات (Meta CAPI Access Token)' : 'Meta CAPI Access Token (Server-Side)'}
+                </label>
+                <div className="relative">
+                  <input
+                    type={showCapiToken ? 'text' : 'password'}
+                    placeholder="EAAG..."
+                    value={tracking.metaCapiAccessToken}
+                    onChange={(e) => setTracking({ ...tracking, metaCapiAccessToken: e.target.value })}
+                    className="w-full h-9 border border-slate-200 rounded-sm pl-3 pr-10 text-xs font-mono outline-none focus:border-[#174F43]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCapiToken(!showCapiToken)}
+                    className="absolute inset-y-0 right-0 px-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showCapiToken ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  {lang === 'ar'
+                    ? 'سري ومحمي في السيرفر فقط (لا يظهر في كود المتجر). يُرسل حدث الشراء من السيرفر فورا عند تأكيد الطلب مع تشفير SHA-256 للبيانات.'
+                    : 'Stored securely in backend only. Dispatches server-side Purchase event with SHA-256 hashed customer data on order creation.'}
+                </p>
+              </div>
+            </div>
+
+            {/* TikTok Configuration */}
+            <div className="bg-white rounded-sm border border-slate-200 p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-sm bg-slate-900 text-white flex items-center justify-center font-bold text-xs">
+                    TT
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900">
+                      {lang === 'ar' ? 'إعدادات TikTok Pixel' : 'TikTok Pixel'}
+                    </h4>
+                    <span className="text-[10px] text-slate-400 font-mono">ttq (E-Commerce Events)</span>
+                  </div>
+                </div>
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                  tracking.tiktokPixelId ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'
+                }`}>
+                  {tracking.tiktokPixelId ? (lang === 'ar' ? 'مضبوط' : 'Configured') : (lang === 'ar' ? 'غير محدد' : 'Not set')}
+                </span>
+              </div>
+
+              {/* TikTok Pixel ID */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  {lang === 'ar' ? 'معرف بكسل تيك توك (TikTok Pixel ID)' : 'TikTok Pixel ID'}
+                </label>
+                <input
+                  type="text"
+                  placeholder="مثال: C123456789ABCDEF"
+                  value={tracking.tiktokPixelId}
+                  onChange={(e) => setTracking({ ...tracking, tiktokPixelId: e.target.value })}
+                  className="w-full h-9 border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none focus:border-[#174F43]"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  {lang === 'ar'
+                    ? 'يتم حقن كود تيك توك تلقائياً لتسجيل تصفح العطور والإضافة للسلة وإتمام الشراء بعملة الجنيه المصري (EGP).'
+                    : 'Injected into storefront for TikTok ad tracking: PageView, ViewContent, AddToCart, InitiateCheckout, Purchase.'}
+                </p>
+              </div>
+
+              {/* Deduplication & Attribution Info Box */}
+              <div className="bg-[#174F43]/5 border border-[#174F43]/15 rounded-sm p-3 space-y-1.5 text-slate-700 text-[11px]">
+                <div className="flex items-center gap-1.5 font-bold text-[#174F43]">
+                  <ShieldCheck size={14} />
+                  <span>{lang === 'ar' ? 'نظام منع التكرار التلقائي (Deduplication)' : 'Built-in Deduplication'}</span>
+                </div>
+                <p className="leading-relaxed text-slate-600 text-[10px]">
+                  {lang === 'ar'
+                    ? 'يتم إرسال معرّف موحد للحدث (order_{orderNumber}) لكل من بكسل المتصفح وواجهة السيرفر CAPI، مما يتيح لميتا دمج الحدثين بدقة ومنع احتساب الشراء مرتين.'
+                    : 'Identical event_id (order_${orderNumber}) is shared between client pixel and server CAPI, allowing Meta to deduplicate without double counting.'}
+                </p>
+              </div>
             </div>
           </div>
         </div>
