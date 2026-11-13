@@ -461,6 +461,26 @@ export const getMarketingAnalytics = async (params = {}) => {
   return res.data?.data || res.data;
 };
 
+export const getMarketingDashboard = async (params = {}) => {
+  const res = await API.get('/marketing/dashboard', { params });
+  return res.data?.data || res.data;
+};
+
+export const getAdSpends = async (params = {}) => {
+  const res = await API.get('/marketing/ad-spend', { params });
+  return res.data?.data || res.data;
+};
+
+export const createAdSpend = async (data) => {
+  const res = await API.post('/marketing/ad-spend', data);
+  return res.data?.data || res.data;
+};
+
+export const deleteAdSpend = async (id) => {
+  const res = await API.delete(`/marketing/ad-spend/${id}`);
+  return res.data?.data || res.data;
+};
+
 export default API;
 
 

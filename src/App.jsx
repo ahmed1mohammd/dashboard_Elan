@@ -21,6 +21,7 @@ import ExpensesPage from './pages/ExpensesPage';
 import CashAccountsPage from './pages/CashAccountsPage';
 import StockMovementsPage from './pages/StockMovementsPage';
 import ReportsPage from './pages/ReportsPage';
+import MarketingPage from './pages/MarketingPage';
 
 // Protected Route Wrapper for Admin Access
 const ProtectedRoute = ({ children }) => {
@@ -187,6 +188,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <UsersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/marketing"
+            element={
+              <ProtectedRoute>
+                <MarketingPage />
               </ProtectedRoute>
             }
           />

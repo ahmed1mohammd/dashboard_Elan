@@ -5,7 +5,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { 
   BarChart3, Truck, DollarSign, Package, Users, Tag, Image, 
   Store, LogOut, Menu, X, ChevronLeft, ChevronRight, FlaskConical, Layers,
-  Receipt, Wallet, FileSpreadsheet, History, Sparkles, Globe, Droplets
+  Receipt, Wallet, FileSpreadsheet, History, Sparkles, Globe, Droplets, Target
 } from 'lucide-react';
 
 export default function DashboardLayout({ children }) {
@@ -40,6 +40,7 @@ export default function DashboardLayout({ children }) {
     { path: '/users', label: t('nav.users', 'Customer Logs & Activity'), icon: Users },
     { path: '/coupons', label: t('nav.coupons', 'Coupons & Discounts'), icon: Tag },
     { path: '/offers', label: t('nav.offers', 'Bundles & Special Offers'), icon: Sparkles },
+    { path: '/marketing', label: t('nav.marketing', 'Marketing & Ads Analytics'), icon: Target },
     { path: '/cms', label: t('nav.cms', 'Storefront CMS & Banners'), icon: Image },
   ];
 

@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Save, 
   Check, 
@@ -700,6 +701,27 @@ export default function CMSPage() {
                 {tracking.enableTracking ? (lang === 'ar' ? 'مفعل' : 'Active') : (lang === 'ar' ? 'معطل' : 'Disabled')}
               </span>
             </div>
+          </div>
+
+          {/* Quick Launch Marketing & Ads Analytics Dashboard Banner */}
+          <div className="bg-[#174F43]/5 border border-[#174F43]/20 rounded-sm p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h4 className="text-xs font-bold text-[#174F43]">
+                {lang === 'ar' ? 'لوحة تحليلات التسويق والإعلانات المتقدمة (Marketing & Ads Analytics)' : 'Advanced Marketing & Ads Analytics Dashboard'}
+              </h4>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                {lang === 'ar'
+                  ? 'عرض أداء الحملات الإعلانية، حساب ROAS و CPA، قمع التحويل بالكامل، وأرباح كل قناة تسويقية.'
+                  : 'Track live Ad Spend, ROAS, CPA, conversion funnels, and net profit per acquisition channel.'}
+              </p>
+            </div>
+            <Link
+              to="/marketing"
+              className="px-4 py-2 bg-[#174F43] hover:bg-[#0F3830] text-white text-xs font-semibold rounded-sm inline-flex items-center gap-2 transition-colors cursor-pointer shrink-0"
+            >
+              <Target size={14} className="text-[#FF9D00]" />
+              <span>{lang === 'ar' ? 'فتح لوحة تحليلات الإعلانات' : 'Open Analytics Dashboard'}</span>
+            </Link>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
