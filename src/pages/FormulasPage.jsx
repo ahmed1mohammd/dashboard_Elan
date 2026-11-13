@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { 
   Layers, Plus, Trash2, Edit2, Check, AlertCircle, 
-  RefreshCw, X, GitBranch, ArrowRight, Calculator, CheckCircle2, Scale, Sparkles
+  RefreshCw, X, GitBranch, ArrowRight, Calculator, CheckCircle2, Scale
 } from 'lucide-react';
 import { 
   getFormulas, createFormula, updateFormula, 
@@ -272,14 +272,14 @@ export default function FormulasPage() {
   return (
     <div className="space-y-6 text-right font-['Cairo',sans-serif]">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200/80">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#174F43] to-[#0F3830] text-white flex items-center justify-center shadow-md shadow-[#174F43]/10">
+            <div className="w-9 h-9 rounded-sm bg-[#174F43] text-white flex items-center justify-center">
               <Layers size={20} strokeWidth={1.5} />
             </div>
             <div>
-              <h1 className="text-xl font-extrabold text-[#174F43] tracking-tight">
+              <h1 className="text-xl font-bold text-[#174F43] tracking-tight">
                 تركيبات العطور (Fragrance Formulas)
               </h1>
               <p className="text-xs text-slate-500 font-medium">
@@ -292,7 +292,7 @@ export default function FormulasPage() {
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <button
             onClick={handleOpenAdd}
-            className="px-4 py-2.5 rounded-xl bg-[#174F43] hover:bg-[#0F3830] text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-sm hover:shadow active:scale-95"
+            className="px-4 py-2 rounded-sm bg-[#174F43] hover:bg-[#0F3830] text-white text-xs font-semibold flex items-center gap-2 transition-colors"
           >
             <Plus size={16} />
             <span>إنشاء تركيبة عطر جديدة</span>
@@ -300,7 +300,7 @@ export default function FormulasPage() {
 
           <button
             onClick={fetchData}
-            className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors shadow-xs"
+            className="p-2 rounded-sm border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
             title="تحديث"
           >
             <RefreshCw size={14} strokeWidth={1.7} className={loading ? 'animate-spin text-[#174F43]' : ''} />
@@ -311,14 +311,14 @@ export default function FormulasPage() {
       {/* Formula Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading ? (
-          <div className="col-span-full py-16 text-center text-slate-400 bg-white rounded-2xl border border-slate-200/80">
+          <div className="col-span-full py-16 text-center text-slate-400 bg-white rounded-sm border border-slate-200">
             <div className="flex items-center justify-center gap-3">
               <div className="w-6 h-6 border-2 border-[#174F43] border-t-transparent rounded-full animate-spin"></div>
               <span className="font-semibold text-xs">جاري تحميل التركيبات العطرية...</span>
             </div>
           </div>
         ) : formulas.length === 0 ? (
-          <div className="col-span-full py-16 text-center text-slate-400 bg-white rounded-2xl border border-slate-200/80 p-6">
+          <div className="col-span-full py-16 text-center text-slate-400 bg-white rounded-sm border border-slate-200 p-6">
             <Layers size={36} className="mx-auto text-slate-300 mb-2" strokeWidth={1.5} />
             <p className="font-bold text-slate-700 text-sm">لا توجد تركيبات مسجلة بعد</p>
             <p className="text-xs text-slate-400 mt-1">اضغط على "إنشاء تركيبة عطر جديدة" لبناء وصفة عطرية بالجرام والنسب.</p>
@@ -328,28 +328,46 @@ export default function FormulasPage() {
             const isVActive = formula.active !== false;
             const displayName = formula.name || formula.fragranceName || 'تركيبة عطرية';
             const prodName = formula.fragrance?.name || formula.product?.name;
+            const oilPct = formula.oilPercentage || formula.defaultConcentration || 25;
+            const alcPct = formula.alcoholPercentage || (100 - oilPct);
+            const oilRatio = oilPct / 100;
+            const alcRatio = alcPct / 100;
+
+            const breakdown30 = { oil: (25 * oilRatio).toFixed(2), alc: (25 * alcRatio).toFixed(2) };
+            const breakdown50 = { oil: (43 * oilRatio).toFixed(2), alc: (43 * alcRatio).toFixed(2) };
+            const breakdown100 = { oil: (78 * oilRatio).toFixed(2), alc: (78 * alcRatio).toFixed(2) };
             
             return (
-              <div key={formula._id} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between overflow-hidden">
+              <div key={formula._id} className="bg-white rounded-sm border border-slate-200 flex flex-col justify-between overflow-hidden">
                 {/* Header */}
-                <div className="p-4 border-b border-slate-100 bg-[#F8FAFC]">
+                <div className="p-4 border-b border-slate-200 bg-[#F8FAFC]">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="font-extrabold text-sm text-[#174F43]">{displayName}</h3>
-                        <span className="px-2 py-0.5 rounded-md bg-[#174F43]/10 text-[#174F43] text-[10px] font-mono font-bold">
+                        <h3 className="font-bold text-sm text-[#174F43]">{displayName}</h3>
+                        <span className="px-2 py-0.5 rounded-sm bg-[#174F43]/10 text-[#174F43] text-[10px] font-mono font-bold">
                           v{formula.version || 1}
                         </span>
                       </div>
                       {prodName && (
-                        <span className="text-[11px] text-slate-500 font-medium block mt-1">
-                          العطر التجاري: <strong className="text-slate-800">{prodName}</strong>
+                        <span className="text-[11px] text-slate-600 font-medium block mt-1">
+                          العطر التجاري: <strong className="text-slate-900">{prodName}</strong>
                         </span>
                       )}
                     </div>
 
-                    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${isVActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                    <span className={`px-2 py-0.5 rounded-sm text-[10px] font-bold border ${isVActive ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
                       {isVActive ? 'نشطة (Active)' : 'مؤرشفة'}
+                    </span>
+                  </div>
+
+                  {/* Oil vs Alcohol Ratio Badge */}
+                  <div className="mt-2.5 flex items-center gap-2 text-[11px] font-mono">
+                    <span className="px-2 py-0.5 bg-amber-50 text-amber-900 border border-amber-200 rounded-sm font-semibold">
+                      زيت خام: {oilPct}%
+                    </span>
+                    <span className="px-2 py-0.5 bg-blue-50 text-blue-900 border border-blue-200 rounded-sm font-semibold">
+                      كحول 96%: {alcPct}%
                     </span>
                   </div>
 
@@ -361,44 +379,73 @@ export default function FormulasPage() {
                 </div>
 
                 {/* Ingredients List */}
-                <div className="p-4 flex-1 space-y-2">
-                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 border-b border-slate-100 pb-1.5">
-                    <span>الزيت الخام</span>
-                    <div className="flex items-center gap-3">
-                      <span>الوزن (لكل 100 جم)</span>
-                      <span>النسبة</span>
+                <div className="p-4 flex-1 space-y-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 border-b border-slate-100 pb-1.5">
+                      <span>الزيت الخام</span>
+                      <div className="flex items-center gap-3">
+                        <span>الوزن (لكل 100 جم)</span>
+                        <span>النسبة</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                      {(formula.ingredients || []).map((ing, iIdx) => {
+                        const matName = ing.rawMaterialName || ing.rawMaterial?.name || 'زيت عطري';
+                        const pct = Number(ing.percentage) || 0;
+                        const gVal = (pct * 1).toFixed(1);
+                        return (
+                          <div key={iIdx} className="flex items-center justify-between text-xs py-1 px-2 rounded-sm bg-slate-50 border border-slate-100">
+                            <span className="text-slate-800 font-medium truncate max-w-[140px]">{matName}</span>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className="font-mono text-slate-500 text-[11px]">{gVal}g</span>
+                              <span className="font-mono font-bold text-[#174F43]">{pct}%</span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                    {(formula.ingredients || []).map((ing, iIdx) => {
-                      const matName = ing.rawMaterialName || ing.rawMaterial?.name || 'زيت عطري';
-                      const pct = Number(ing.percentage) || 0;
-                      const gVal = (pct * 1).toFixed(1);
-                      return (
-                        <div key={iIdx} className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-slate-50/60 border border-slate-100">
-                          <span className="text-slate-700 font-medium truncate max-w-[140px]">{matName}</span>
-                          <div className="flex items-center gap-3 shrink-0">
-                            <span className="font-mono text-slate-500 text-[11px]">{gVal}g</span>
-                            <span className="font-mono font-bold text-[#174F43]">{pct}%</span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                  {/* Official M20 Net Bottle Breakdown Table */}
+                  <div className="pt-2 border-t border-slate-100">
+                    <span className="text-[10px] font-bold text-slate-500 block mb-1">
+                      معايير التعبئة الرسمية (صافي السائل + 1g فاقد):
+                    </span>
+                    <div className="grid grid-cols-3 gap-1.5 text-center text-[10px] font-mono">
+                      <div className="bg-slate-50 border border-slate-200 p-1.5 rounded-sm">
+                        <strong className="block text-slate-900 font-bold">30ml</strong>
+                        <span className="text-slate-600 block text-[9px]">صافي 25g (تحضير 26g)</span>
+                        <span className="text-[#174F43] font-semibold block text-[9px] mt-0.5">{breakdown30.oil}g زيت</span>
+                        <span className="text-slate-500 block text-[9px]">{breakdown30.alc}g كحول</span>
+                      </div>
+                      <div className="bg-slate-50 border border-slate-200 p-1.5 rounded-sm">
+                        <strong className="block text-slate-900 font-bold">50ml</strong>
+                        <span className="text-slate-600 block text-[9px]">صافي 43g (تحضير 44g)</span>
+                        <span className="text-[#174F43] font-semibold block text-[9px] mt-0.5">{breakdown50.oil}g زيت</span>
+                        <span className="text-slate-500 block text-[9px]">{breakdown50.alc}g كحول</span>
+                      </div>
+                      <div className="bg-slate-50 border border-slate-200 p-1.5 rounded-sm">
+                        <strong className="block text-slate-900 font-bold">100ml</strong>
+                        <span className="text-slate-600 block text-[9px]">صافي 78g (تحضير 79g)</span>
+                        <span className="text-[#174F43] font-semibold block text-[9px] mt-0.5">{breakdown100.oil}g زيت</span>
+                        <span className="text-slate-500 block text-[9px]">{breakdown100.alc}g كحول</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 {/* Footer specs & Actions */}
-                <div className="p-3 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-xs">
+                <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs">
                   <div>
-                    <span className="text-[10px] text-slate-400 block font-semibold">نسبة التركيز الافتراضية:</span>
-                    <span className="font-mono font-bold text-[#174F43]">{formula.defaultConcentration || 25}%</span>
+                    <span className="text-[10px] text-slate-500 block font-semibold">نسبة تركيز الزيت:</span>
+                    <span className="font-mono font-bold text-[#174F43]">{oilPct}%</span>
                   </div>
 
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => handleOpenNewVersion(formula)}
-                      className="px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+                      className="px-2.5 py-1.5 rounded-sm bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors"
                       title="إنشاء إصدار جديد من هذه التركيبة"
                     >
                       <GitBranch size={13} className="text-[#174F43]" />
@@ -407,7 +454,7 @@ export default function FormulasPage() {
 
                     <button
                       onClick={() => handleDelete(formula)}
-                      className="p-1.5 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                      className="p-1.5 rounded-sm text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                       title="حذف"
                     >
                       <Trash2 size={14} />
@@ -422,23 +469,23 @@ export default function FormulasPage() {
 
       {/* Add / New Version Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 rtl bg-black/50 backdrop-blur-xs">
-          <div className="relative w-full max-w-2xl bg-white rounded-3xl border border-slate-200 shadow-2xl z-10 max-h-[92vh] flex flex-col overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 rtl bg-black/50">
+          <div className="relative w-full max-w-2xl bg-white rounded-sm border border-slate-200 z-10 max-h-[92vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-200/80 bg-[#F8FAFC] flex items-center justify-between shrink-0">
+            <div className="px-6 py-4 border-b border-slate-200 bg-[#F8FAFC] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-[#174F43]/10 text-[#174F43] flex items-center justify-center">
+                <div className="w-8 h-8 rounded-sm bg-[#174F43]/10 text-[#174F43] flex items-center justify-center">
                   <Layers size={18} />
                 </div>
                 <div>
                   <h2 className="text-sm font-bold text-[#174F43]">
                     {isVersionMode ? `إنشاء إصدار جديد: ${selectedFormula?.name || selectedFormula?.fragranceName} (v${(selectedFormula?.version || 1) + 1})` : 'إنشاء تركيبة عطر جديدة'}
                   </h2>
-                  <p className="text-[11px] text-slate-400">إدخال مكونات الزيوت بالجرام والنسب المئوية</p>
+                  <p className="text-[11px] text-slate-500">إدخال مكونات الزيوت بالجرام والنسب المئوية</p>
                 </div>
               </div>
 
-              <button onClick={() => setShowModal(false)} className="p-1 text-slate-400 hover:text-slate-700 rounded-lg">
+              <button onClick={() => setShowModal(false)} className="p-1 text-slate-400 hover:text-slate-700 rounded-sm">
                 <X size={18} />
               </button>
             </div>
@@ -507,19 +554,19 @@ export default function FormulasPage() {
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="ملاحظات حول الهرم العطري والمكونات الافتتاحية والقلب والقاعدة..."
-                  className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs outline-none focus:border-[#174F43]"
+                  className="w-full bg-white border border-slate-200 rounded-sm p-2.5 text-xs outline-none focus:border-[#174F43]"
                 />
               </div>
 
               {/* Ingredients Builder */}
-              <div className="border border-slate-200/90 rounded-2xl p-4 bg-[#F8FAFC] space-y-3">
+              <div className="border border-slate-200 rounded-sm p-3.5 bg-[#F8FAFC] space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200">
                   <div>
-                    <span className="font-extrabold text-[#174F43] text-xs flex items-center gap-1.5">
+                    <span className="font-bold text-[#174F43] text-xs flex items-center gap-1.5">
                       <Scale size={15} className="text-[#174F43]" />
                       <span>مكونات مزيج الزيت العطري (بالنسب المئوية %)</span>
                     </span>
-                    <span className="text-[11px] text-slate-400 font-medium">
+                    <span className="text-[11px] text-slate-500 font-medium">
                       حدد نسبة كل زيت عطري داخل الخلطة بحيث يكون مجموع نسب الزيوت 100%
                     </span>
                   </div>
@@ -528,7 +575,7 @@ export default function FormulasPage() {
                     <button
                       type="button"
                       onClick={handleAddIngredientRow}
-                      className="px-3 py-1.5 bg-[#174F43] hover:bg-[#0F3830] text-white rounded-xl text-[11px] font-bold flex items-center gap-1 transition-colors shadow-2xs"
+                      className="px-3 py-1.5 bg-[#174F43] hover:bg-[#0F3830] text-white rounded-sm text-[11px] font-bold flex items-center gap-1 transition-colors"
                     >
                       <Plus size={13} />
                       <span>إضافة زيت خام</span>
@@ -545,13 +592,13 @@ export default function FormulasPage() {
 
                 <div className="space-y-2">
                   {formData.ingredients.map((ing, idx) => (
-                    <div key={idx} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-white p-2.5 border border-slate-200 rounded-xl shadow-2xs">
+                    <div key={idx} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-white p-2.5 border border-slate-200 rounded-sm">
                       {/* Raw Material Select */}
                       <div className="sm:col-span-8">
                         <select
                           value={ing.rawMaterial}
                           onChange={(e) => handleRawMaterialSelect(idx, e.target.value)}
-                          className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2.5 text-xs font-semibold outline-none focus:border-[#174F43]"
+                          className="w-full h-9 bg-slate-50 border border-slate-200 rounded-sm px-2.5 text-xs font-semibold outline-none focus:border-[#174F43]"
                           required
                         >
                           <option value="">-- اختر الزيت الخام --</option>
@@ -578,7 +625,7 @@ export default function FormulasPage() {
                             onChange={(e) => handleIngredientPercentageChange(idx, e.target.value)}
                             placeholder="النسبة"
                             required
-                            className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl px-2 text-xs font-mono font-bold text-center outline-none focus:border-[#174F43]"
+                            className="w-full h-9 bg-slate-50 border border-slate-200 rounded-sm px-2 text-xs font-mono font-bold text-center outline-none focus:border-[#174F43]"
                           />
                           <span className="absolute left-2.5 top-2.5 text-xs text-slate-400 font-bold pointer-events-none">%</span>
                         </div>
@@ -590,7 +637,7 @@ export default function FormulasPage() {
                           type="button"
                           onClick={() => handleRemoveIngredientRow(idx)}
                           disabled={formData.ingredients.length <= 1}
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-20 transition-colors"
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-sm disabled:opacity-20 transition-colors"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -603,21 +650,21 @@ export default function FormulasPage() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-200">
                   <div className="flex items-center gap-2">
                     {isSumValid ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-xs">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-sm bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-xs">
                         <CheckCircle2 size={15} />
                         <span>مجموع النسب مكتمل 100%</span>
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-red-50 border border-red-200 text-red-600 font-bold text-xs">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-sm bg-red-50 border border-red-200 text-red-600 font-bold text-xs">
                         <AlertCircle size={15} />
                         <span>مجموع النسب: {currentTotalPercentage.toFixed(2)}% (مطلوب 100%)</span>
                       </span>
                     )}
                   </div>
 
-                  <div className="text-left font-mono bg-white px-3 py-1.5 rounded-xl border border-slate-200">
-                    <span className="text-slate-400 text-[10px] block font-sans font-bold">تكلفة مزيج الزيت التقديرية:</span>
-                    <strong className="text-[#174F43] text-xs font-extrabold">{estimatedOilCostPerGram.toFixed(3)} ج.م / g</strong>
+                  <div className="text-left font-mono bg-white px-3 py-1.5 rounded-sm border border-slate-200">
+                    <span className="text-slate-500 text-[10px] block font-sans font-semibold">تكلفة مزيج الزيت التقديرية:</span>
+                    <strong className="text-[#174F43] text-xs font-bold">{estimatedOilCostPerGram.toFixed(3)} ج.م / g</strong>
                   </div>
                 </div>
               </div>
@@ -627,14 +674,14 @@ export default function FormulasPage() {
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-700 font-semibold h-10"
+                  className="px-4 py-2 border border-slate-200 rounded-sm hover:bg-slate-50 text-slate-700 font-semibold h-10"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
                   disabled={submitting || !isSumValid}
-                  className="px-6 py-2 bg-[#174F43] text-white rounded-xl hover:bg-[#0F3830] h-10 font-bold disabled:opacity-50 shadow-sm"
+                  className="px-6 py-2 bg-[#174F43] text-white rounded-sm hover:bg-[#0F3830] h-10 font-bold disabled:opacity-50"
                 >
                   {submitting ? 'جاري الحفظ...' : isVersionMode ? 'حفظ كإصدار جديد' : 'حفظ التركيبة'}
                 </button>

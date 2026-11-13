@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Package, Plus, Search, Filter, AlertTriangle, 
   CheckCircle2, Clock, Check, RefreshCw, X, ArrowRight,
-  FlaskConical, Sparkles, Layers, Box, Info, XCircle
+  FlaskConical, Layers, Box, Info, XCircle, Scale
 } from 'lucide-react';
 import { 
   getBatches, createBatch, confirmBatch, 
@@ -14,8 +14,8 @@ import { showSuccess, showError, showConfirm, showWarning, showToast, customSwal
 
 const STATUS_MAP = {
   draft: { label: 'مسودة (Draft)', bg: 'bg-slate-100 text-slate-700 border-slate-200' },
-  confirmed: { label: 'تم الخلط والحسم (Confirmed)', bg: 'bg-blue-50 text-blue-700 border-blue-200' },
-  matured: { label: 'مكتمل التعتيق (Matured)', bg: 'bg-purple-50 text-purple-700 border-purple-200' },
+  confirmed: { label: 'تم الخلط والحسم (Confirmed)', bg: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+  matured: { label: 'مكتمل التعتيق (Matured)', bg: 'bg-slate-100 text-slate-800 border-slate-300' },
   bottled: { label: 'تمت التعبئة (Bottled)', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   cancelled: { label: 'ملغاة (Cancelled)', bg: 'bg-red-50 text-red-700 border-red-200' },
 };
@@ -36,6 +36,14 @@ export default function BatchesPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Production Mode: 'bottle_count' vs 'bulk_weight'
+  const [productionMode, setProductionMode] = useState('bottle_count');
+  const [bottleCounts, setBottleCounts] = useState({
+    '30ml': 10,
+    '50ml': 10,
+    '100ml': 5
+  });
+
   // New Batch Form Data
   const [batchForm, setBatchForm] = useState({
     formulaId: '',
@@ -52,7 +60,7 @@ export default function BatchesPage() {
     productId: '',
     variantSize: '50ml',
     unitsBottled: 10,
-    targetWeightGramsPerUnit: 45, // default 50ml perfume is ~42-45g
+    targetWeightGramsPerUnit: 43, // default 50ml net liquid weight
     packagingBottleId: '',
     packagingBoxId: '',
     packagingCapId: '',
@@ -97,26 +105,36 @@ export default function BatchesPage() {
 
   // Update preview when batch parameters change
   useEffect(() => {
-    if (batchForm.formulaId && batchForm.totalWeightGrams && batchForm.concentrationPercent) {
+    if (batchForm.formulaId && batchForm.concentrationPercent) {
       handleCalculatePreview();
     } else {
       setPreviewData(null);
     }
-  }, [batchForm.formulaId, batchForm.totalWeightGrams, batchForm.concentrationPercent, batchForm.alcoholRawMaterialId]);
+  }, [
+    batchForm.formulaId, 
+    batchForm.totalWeightGrams, 
+    batchForm.concentrationPercent, 
+    batchForm.alcoholRawMaterialId, 
+    productionMode, 
+    bottleCounts
+  ]);
 
   const handleCalculatePreview = async () => {
-    if (!batchForm.formulaId || !batchForm.totalWeightGrams) return;
+    if (!batchForm.formulaId) return;
     setPreviewLoading(true);
     try {
-      const data = await previewBatchCalculation({
+      const payload = {
         formulaId: batchForm.formulaId,
         formula: batchForm.formulaId,
-        finalBatchWeight: Number(batchForm.totalWeightGrams),
-        totalWeightGrams: Number(batchForm.totalWeightGrams),
+        productionMode,
+        bottleCounts: productionMode === 'bottle_count' ? bottleCounts : undefined,
+        finalBatchWeight: productionMode === 'bulk_weight' ? Number(batchForm.totalWeightGrams) : undefined,
+        totalWeightGrams: productionMode === 'bulk_weight' ? Number(batchForm.totalWeightGrams) : undefined,
         concentration: Number(batchForm.concentrationPercent),
         concentrationPercent: Number(batchForm.concentrationPercent),
         alcoholRawMaterialId: batchForm.alcoholRawMaterialId || undefined,
-      });
+      };
+      const data = await previewBatchCalculation(payload);
       setPreviewData(data);
     } catch (err) {
       console.error('Preview calc error:', err);
@@ -130,8 +148,8 @@ export default function BatchesPage() {
     setBatchForm(prev => ({
       ...prev,
       formulaId,
-      concentrationPercent: f?.defaultConcentration || 25,
-      batchCode: `BATCH-${f?.code || 'M20'}-${new Date().toISOString().slice(2, 7).replace('-', '')}-${Math.floor(100 + Math.random() * 900)}`,
+      concentrationPercent: f?.defaultConcentration || f?.oilPercentage || 25,
+      batchCode: `BATCH-${f?.code || f?.name || 'M20'}-${new Date().toISOString().slice(2, 7).replace('-', '')}-${Math.floor(100 + Math.random() * 900)}`,
     }));
   };
 
@@ -140,12 +158,14 @@ export default function BatchesPage() {
     setBatchForm({
       formulaId: formulas[0]?._id || '',
       batchCode: `BATCH-M20-${new Date().toISOString().slice(2, 7).replace('-', '')}-${Math.floor(100 + Math.random() * 900)}`,
-      totalWeightGrams: 5000,
-      concentrationPercent: formulas[0]?.defaultConcentration || 25,
+      totalWeightGrams: 1000,
+      concentrationPercent: formulas[0]?.defaultConcentration || formulas[0]?.oilPercentage || 25,
       alcoholRawMaterialId: defaultAlc,
       productionDate: new Date().toISOString().split('T')[0],
       notes: '',
     });
+    setProductionMode('bottle_count');
+    setBottleCounts({ '30ml': 10, '50ml': 10, '100ml': 5 });
     setShowCreateModal(true);
   };
 
@@ -156,10 +176,12 @@ export default function BatchesPage() {
       const payload = {
         formulaId: batchForm.formulaId,
         formula: batchForm.formulaId,
+        productionMode,
+        bottleCounts: productionMode === 'bottle_count' ? bottleCounts : undefined,
         batchCode: batchForm.batchCode,
         batchNumber: batchForm.batchCode,
-        finalBatchWeight: Number(batchForm.totalWeightGrams),
-        totalWeightGrams: Number(batchForm.totalWeightGrams),
+        finalBatchWeight: productionMode === 'bulk_weight' ? Number(batchForm.totalWeightGrams) : undefined,
+        totalWeightGrams: productionMode === 'bulk_weight' ? Number(batchForm.totalWeightGrams) : undefined,
         concentration: Number(batchForm.concentrationPercent),
         concentrationPercent: Number(batchForm.concentrationPercent),
         alcoholRawMaterialId: batchForm.alcoholRawMaterialId,
@@ -167,7 +189,7 @@ export default function BatchesPage() {
         notes: batchForm.notes,
       };
       await createBatch(payload);
-      showSuccess('تم إنشاء الدفعة بنجاح', 'تم تسجيل وتأكيد دفعة الإنتاج الجديدة وحسم الخامات');
+      showSuccess('تم إنشاء الدفعة بنجاح', 'تم تسجيل وتأكيد دفعة الإنتاج وحسم الخامات وإضافة السائل للمخزون');
       setShowCreateModal(false);
       fetchData();
     } catch (err) {
@@ -418,7 +440,7 @@ export default function BatchesPage() {
                       </td>
 
                       <td className="py-3 px-4 text-center font-mono">
-                        <span className={`font-bold ${(batch.remainingLiquidGrams ?? batch.finalBatchWeight ?? 0) > 0 ? 'text-indigo-700' : 'text-slate-400'}`}>
+                        <span className={`font-bold ${(batch.remainingLiquidGrams ?? batch.finalBatchWeight ?? 0) > 0 ? 'text-[#174F43]' : 'text-slate-400'}`}>
                           {(batch.remainingLiquidGrams ?? batch.finalBatchWeight ?? 0)?.toLocaleString()} g
                         </span>
                       </td>
@@ -518,21 +540,102 @@ export default function BatchesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block font-medium text-slate-700 mb-1">الوزن الإجمالي للدفعة (جرام) *</label>
-                  <input
-                    type="number"
-                    min="10"
-                    step="1"
-                    required
-                    value={batchForm.totalWeightGrams}
-                    onChange={(e) => setBatchForm({ ...batchForm, totalWeightGrams: e.target.value })}
-                    placeholder="5000"
-                    className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none focus:border-[#174F43]"
-                  />
-                </div>
+              {/* Production Mode Switcher */}
+              <div className="bg-slate-100 p-1 rounded-sm flex items-center gap-1 border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setProductionMode('bottle_count')}
+                  className={`flex-1 py-1.5 px-3 text-xs font-semibold rounded-sm transition-colors ${
+                    productionMode === 'bottle_count'
+                      ? 'bg-[#174F43] text-white'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  عدّات الزجاجات المستهدفة (Bottle Count Production)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProductionMode('bulk_weight')}
+                  className={`flex-1 py-1.5 px-3 text-xs font-semibold rounded-sm transition-colors ${
+                    productionMode === 'bulk_weight'
+                      ? 'bg-[#174F43] text-white'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  تشغيلة بالجرام الإجمالي (Bulk Gram Batch)
+                </button>
+              </div>
 
+              {/* Mode 1: Bottle Count Inputs */}
+              {productionMode === 'bottle_count' && (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-sm space-y-2">
+                  <div className="text-[11px] font-semibold text-slate-700">
+                    أدخل أعداد الزجاجات المستهدفة (مع حساب صافي السائل + 1 جم فاقد نقل/تعبئة لكل زجاجة):
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                        30ml (صافي 25g + 1g فاقد)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={bottleCounts['30ml'] ?? 0}
+                        onChange={(e) => setBottleCounts({ ...bottleCounts, '30ml': Math.max(0, parseInt(e.target.value) || 0) })}
+                        className="w-full h-8 bg-white border border-slate-200 rounded-sm px-2 text-xs font-mono outline-none focus:border-[#174F43]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                        50ml (صافي 43g + 1g فاقد)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={bottleCounts['50ml'] ?? 0}
+                        onChange={(e) => setBottleCounts({ ...bottleCounts, '50ml': Math.max(0, parseInt(e.target.value) || 0) })}
+                        className="w-full h-8 bg-white border border-slate-200 rounded-sm px-2 text-xs font-mono outline-none focus:border-[#174F43]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                        100ml (صافي 78g + 1g فاقد)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={bottleCounts['100ml'] ?? 0}
+                        onChange={(e) => setBottleCounts({ ...bottleCounts, '100ml': Math.max(0, parseInt(e.target.value) || 0) })}
+                        className="w-full h-8 bg-white border border-slate-200 rounded-sm px-2 text-xs font-mono outline-none focus:border-[#174F43]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Mode 2: Bulk Weight Input */}
+              {productionMode === 'bulk_weight' && (
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <label className="block font-medium text-slate-700 mb-1">الوزن الإجمالي للدفعة (جرام) *</label>
+                    <input
+                      type="number"
+                      min="10"
+                      step="1"
+                      required
+                      value={batchForm.totalWeightGrams}
+                      onChange={(e) => setBatchForm({ ...batchForm, totalWeightGrams: e.target.value })}
+                      placeholder="1000"
+                      className="w-full h-9 bg-white border border-slate-200 rounded-sm px-3 text-xs font-mono outline-none focus:border-[#174F43]"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-medium text-slate-700 mb-1">تركيز الزيت العطري (%) *</label>
                   <input
@@ -566,49 +669,131 @@ export default function BatchesPage() {
                 </div>
               </div>
 
-              {/* Instant Calculation Preview Card */}
+              {/* Instant Calculation Preview Card & Cumulative Scale Guide */}
               {previewData && (
-                <div className="border border-indigo-100 rounded-sm p-3.5 bg-indigo-50/40 space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-indigo-100">
-                    <span className="font-semibold text-indigo-900 text-xs flex items-center gap-1">
-                      <Sparkles size={14} className="text-indigo-600" />
-                      <span>المعاينة الحسابية للدفعة (Gram Breakdown)</span>
-                    </span>
-                    <span className="font-mono text-xs font-bold text-indigo-950">
-                      إجمالي التكلفة: {Math.round(previewData.totalBatchCost).toLocaleString()} ج.م ({previewData.costPerGram?.toFixed(3)} ج.م/g)
-                    </span>
+                <div className="border border-slate-200 rounded-sm p-3.5 bg-slate-50 space-y-3">
+                  {/* Cumulative Scale Weighing Guide */}
+                  <div className="border border-[#174F43]/20 bg-white rounded-sm p-3 space-y-2.5">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                      <span className="font-bold text-[#174F43] text-xs flex items-center gap-1.5">
+                        <Scale size={15} className="text-[#FF9D00]" />
+                        <span>دليل ميزان الخلط التراكمي (Cumulative Scale Guide)</span>
+                      </span>
+                      <span className="font-mono text-xs font-bold text-[#174F43]">
+                        إجمالي التحضير: {previewData.batchWeight}g
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 text-[11px] leading-relaxed">
+                      <div className="p-2 bg-slate-50 border border-slate-200 rounded-sm flex items-start gap-2">
+                        <span className="w-5 h-5 rounded-full bg-[#174F43] text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                          1
+                        </span>
+                        <div className="flex-1">
+                          <strong className="text-slate-900 block font-semibold">
+                            الخطوة الأولى (إضافة الزيت العطري):
+                          </strong>
+                          <span className="text-slate-600">
+                            ضع البيكر/الإناء على الميزان وقم بتصفيره (Tare 0.00g). صب الزيت العطري حتى قراءة الميزان:
+                          </span>
+                          <span className="font-mono font-bold text-[#174F43] text-xs mr-1 ml-1 px-1.5 py-0.5 bg-slate-100 rounded-sm border border-slate-200">
+                            {previewData.scaleReadings?.scaleStep1ReadingGrams || previewData.fragranceOilWeight} g
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="p-2 bg-slate-50 border border-slate-200 rounded-sm flex items-start gap-2">
+                        <span className="w-5 h-5 rounded-full bg-[#FF9D00] text-slate-900 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                          2
+                        </span>
+                        <div className="flex-1">
+                          <strong className="text-slate-900 block font-semibold">
+                            الخطوة الثانية (إضافة كحول 96% باندا ماكس):
+                          </strong>
+                          <span className="text-slate-600">
+                            دون تصفير الميزان، صب الكحول مباشرة فوق الزيت حتى تصبح قراءة الميزان التراكمية:
+                          </span>
+                          <span className="font-mono font-bold text-[#174F43] text-xs mr-1 ml-1 px-1.5 py-0.5 bg-slate-100 rounded-sm border border-slate-200">
+                            {previewData.scaleReadings?.scaleStep2ReadingGrams || previewData.batchWeight} g
+                          </span>
+                          <div className="text-[10px] text-slate-500 font-mono mt-1">
+                            حجم الكحول المطلوب: {previewData.scaleReadings?.alcoholLiters || (previewData.alcoholWeight / 700).toFixed(3)} لتر ({previewData.scaleReadings?.alcoholMl || (previewData.alcoholWeight / 0.70).toFixed(1)} مل) بكثافة 0.70 g/ml
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
+                  {/* Weight Summary Metrics */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                    <div className="bg-white p-2 rounded-sm border border-indigo-100">
-                      <span className="text-[10px] text-slate-500 block">وزن الزيت الإجمالي</span>
-                      <strong className="text-xs font-mono text-indigo-900">{previewData.fragranceOilWeightGrams?.toFixed(1)} g</strong>
+                    <div className="bg-white p-2 rounded-sm border border-slate-200">
+                      <span className="text-[10px] text-slate-500 block">إجمالي وزن التحضير</span>
+                      <strong className="text-xs font-mono text-slate-900">{previewData.batchWeight} g</strong>
                     </div>
-                    <div className="bg-white p-2 rounded-sm border border-indigo-100">
-                      <span className="text-[10px] text-slate-500 block">وزن الكحول الإجمالي</span>
-                      <strong className="text-xs font-mono text-blue-900">{previewData.alcoholWeightGrams?.toFixed(1)} g</strong>
+                    <div className="bg-white p-2 rounded-sm border border-slate-200">
+                      <span className="text-[10px] text-slate-500 block">صافي السائل النهائي</span>
+                      <strong className="text-xs font-mono text-[#174F43]">{previewData.netUsableWeightGrams} g</strong>
                     </div>
-                    <div className="bg-white p-2 rounded-sm border border-indigo-100">
-                      <span className="text-[10px] text-slate-500 block">تكلفة الزيوت</span>
-                      <strong className="text-xs font-mono text-slate-900">{Math.round(previewData.fragranceOilCost || 0)} ج.م</strong>
+                    <div className="bg-white p-2 rounded-sm border border-slate-200">
+                      <span className="text-[10px] text-slate-500 block">فاقد النقل والتعبئة</span>
+                      <strong className="text-xs font-mono text-slate-600">{previewData.batchWeight - previewData.netUsableWeightGrams} g</strong>
                     </div>
-                    <div className="bg-white p-2 rounded-sm border border-indigo-100">
-                      <span className="text-[10px] text-slate-500 block">تكلفة الكحول</span>
-                      <strong className="text-xs font-mono text-slate-900">{Math.round(previewData.alcoholCost || 0)} ج.م</strong>
+                    <div className="bg-white p-2 rounded-sm border border-slate-200">
+                      <span className="text-[10px] text-slate-500 block">تكلفة الجرام</span>
+                      <strong className="text-xs font-mono text-slate-900">{previewData.costPerGram?.toFixed(3)} ج.م/g</strong>
                     </div>
                   </div>
+
+                  {/* Bottle Estimations & Profit Margins Table */}
+                  {Array.isArray(previewData.sizeEstimations) && previewData.sizeEstimations.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-[11px] font-semibold text-slate-700 block">
+                        تفاصيل تكلفة وهوامش ربح الزجاجات التامة (Official M20 Specs):
+                      </span>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-right text-[11px] bg-white border border-slate-200 rounded-sm">
+                          <thead className="bg-slate-100 text-slate-700 border-b border-slate-200">
+                            <tr>
+                              <th className="p-1.5">الحجم</th>
+                              <th className="p-1.5 text-center">صافي السائل</th>
+                              <th className="p-1.5 text-center">وزن التحضير</th>
+                              <th className="p-1.5 text-center">تكلفة السائل</th>
+                              <th className="p-1.5 text-center">تكلفة التغليف</th>
+                              <th className="p-1.5 text-center">التكلفة الإجمالية</th>
+                              <th className="p-1.5 text-center">سعر البيع</th>
+                              <th className="p-1.5 text-center">هامش الربح</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 font-mono">
+                            {previewData.sizeEstimations.map((s, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50">
+                                <td className="p-1.5 font-bold text-slate-900">{s.size}</td>
+                                <td className="p-1.5 text-center">{s.netLiquidWeightGrams}g</td>
+                                <td className="p-1.5 text-center text-slate-500">{s.totalPrepWeightGrams}g</td>
+                                <td className="p-1.5 text-center">{s.liquidCost} ج.م</td>
+                                <td className="p-1.5 text-center">{s.packagingCost} ج.م</td>
+                                <td className="p-1.5 text-center font-bold text-[#174F43]">{s.totalUnitCost} ج.م</td>
+                                <td className="p-1.5 text-center text-slate-900">{s.sellingPrice} ج.م</td>
+                                <td className="p-1.5 text-center font-bold text-emerald-700">%{s.estimatedProfitMargin}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Ingredients breakdown list */}
                   <div className="space-y-1.5 pt-1">
-                    <span className="text-[11px] font-semibold text-slate-700 block">الكميات المطلوبة من كل زيت خام:</span>
-                    <div className="max-h-32 overflow-y-auto space-y-1 pr-1">
-                      {(previewData.ingredientBreakdown || []).map((ing, iIdx) => (
+                    <span className="text-[11px] font-semibold text-slate-700 block">حالة توفر الخامات المطلوبة للدفعة:</span>
+                    <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
+                      {(previewData.ingredients || []).map((ing, iIdx) => (
                         <div key={iIdx} className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-sm border border-slate-200 text-[11px]">
-                          <span className="font-medium text-slate-800">{ing.name} ({ing.percentage}%)</span>
+                          <span className="font-medium text-slate-800">{ing.rawMaterialName} ({ing.percentage}%)</span>
                           <div className="flex items-center gap-3 font-mono">
                             <span className="text-slate-600">مطلوب: <strong>{ing.gramsNeeded?.toFixed(2)} g</strong></span>
-                            <span className={ing.isAvailable ? 'text-emerald-700' : 'text-red-600 font-bold'}>
-                              (متوفر: {ing.currentStock} g)
+                            <span className={!ing.isShort ? 'text-emerald-700 font-medium' : 'text-red-600 font-bold'}>
+                              (متوفر: {ing.availableGrams} g)
                             </span>
                           </div>
                         </div>
@@ -673,7 +858,7 @@ export default function BatchesPage() {
                 </div>
                 <div className="text-left">
                   <span className="text-slate-500 text-[11px] block">السائل المتاح:</span>
-                  <span className="font-mono font-bold text-indigo-700">{selectedBatch.remainingLiquidGrams} g</span>
+                  <span className="font-mono font-bold text-[#174F43]">{selectedBatch.remainingLiquidGrams} g</span>
                 </div>
               </div>
 
